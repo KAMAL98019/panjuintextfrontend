@@ -182,7 +182,7 @@ export default function QuotationPreviewCard({ company, customer, quotationNumbe
                   <p className="text-[8.5px] mb-3">
                     <span className="font-bold">Note : </span>
                     <span className="text-gray-700">
-                      {terms || `All prices quoted are valid for ${validityDays || 7} days from the date of stated on the quotation. 50% advance for the order confirmation.`}
+                      {terms || `All prices quoted are valid for ${validityDays || 7} days from the date of stated on the quotation. 70% advance for the order confirmation.`}
                     </span>
                   </p>
 
