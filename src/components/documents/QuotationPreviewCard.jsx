@@ -53,7 +53,7 @@ export default function QuotationPreviewCard({ company, customer, quotationNumbe
   const negotiatedDiff = total !== undefined && total !== null ? computedGrand - Number(total) : 0;
 
   // ----- Paginate: header block on sheet 1, items flow across sheets, totals/note/footer at the end
-  const headerH = 175;
+  const headerH = 187;
   const totalsRowCount = 2 + gstGroups.length + (discountAmount > 0 ? 1 : 0) + (Math.abs(negotiatedDiff) > 0.5 ? 1 : 0);
   const tailH = totalsRowCount * 17 + 40 + 95; // totals rows + note + footer block
 
@@ -109,7 +109,7 @@ export default function QuotationPreviewCard({ company, customer, quotationNumbe
             <div className="absolute overflow-hidden" style={{ left: 45, top: ZONE_TOP, width: 415, bottom: ZONE_BOTTOM }}>
               {sheet.first && (
                 <>
-                  <div className="flex justify-between items-start mb-3">
+                  <div className="flex justify-between items-start mb-3 mt-3">
                     <div className="text-[9px] leading-snug flex gap-2">
                       <span className="font-bold">TO:</span>
                       <span>
