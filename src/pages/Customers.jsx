@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { Plus, User, Building, Send } from 'lucide-react';
 import Layout from '../components/Layout';
@@ -205,31 +205,31 @@ export default function Customers() {
 
   return (
     <Layout>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>
           <p className="text-xs text-gray-400 mb-1">Dashboard &gt; Customers</p>
           <h1 className="text-2xl font-bold text-navy-900">Customers</h1>
-          <p className="text-sm text-gray-500">Manage customer accounts, profile details, addresses, and view their purchase history.</p>
+          <p className="text-sm text-gray-500 max-w-xl">Manage customer accounts, profile details, addresses, and view their purchase history.</p>
         </div>
-        <Button variant="accent" onClick={() => { setEditing(null); setModalOpen(true); }}><Plus size={15} /> Add New Customer</Button>
+        <Button variant="accent" className="w-full sm:w-auto justify-center" onClick={() => { setEditing(null); setModalOpen(true); }}><Plus size={15} /> Add New Customer</Button>
       </div>
 
       {selectedIds.length > 0 && (
-        <div className="bg-lime-50 border border-lime-200 rounded-xl p-4 mb-4 flex items-center justify-between shadow-sm animate-in fade-in slide-in-from-top-4 duration-300">
+        <div className="bg-lime-50 border border-lime-200 rounded-xl p-4 mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-sm animate-in fade-in slide-in-from-top-4 duration-300">
           <div className="text-navy-900 font-semibold text-sm">
             Selected {selectedIds.length} customer(s)
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 w-full sm:w-auto">
             <Button
               variant="accent"
-              className="gap-1.5 text-xs py-1.5"
+              className="gap-1.5 text-xs py-1.5 flex-1 sm:flex-initial justify-center"
               onClick={() => setBroadcastModalOpen(true)}
             >
               <Send size={13} /> Send WhatsApp Broadcast
             </Button>
             <Button
               variant="outline"
-              className="text-xs py-1.5"
+              className="text-xs py-1.5 flex-1 sm:flex-initial justify-center"
               onClick={() => setSelectedIds([])}
             >
               Clear Selection

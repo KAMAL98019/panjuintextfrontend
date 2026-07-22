@@ -46,6 +46,11 @@ export default function QuotationDetail() {
   const [paymentMode, setPaymentMode] = useState('Cash');
   const [payRemarks, setPayRemarks] = useState('');
 
+  const [discountOpen, setDiscountOpen] = useState(false);
+  const [discountAmount, setDiscountAmount] = useState('');
+  const [discountReason, setDiscountReason] = useState('');
+  const [discountRemarks, setDiscountRemarks] = useState('');
+
   const [previewTab, setPreviewTab] = useState(null); // 'quotation' | 'memo' | 'gst' | null
 
   const load = useCallback(() => {
@@ -169,6 +174,28 @@ export default function QuotationDetail() {
     }
   };
 
+  const openDiscount = () => {
+    setDiscountAmount(String(order.paymentInfo.paid));
+    setDiscountReason(''); setDiscountRemarks('');
+    setDiscountOpen(true);
+  };
+
+  const handleDiscount = async (e) => {
+    e.preventDefault();
+    try {
+      await ordersApi.applyDiscount(order.id, {
+        newAmount: Number(discountAmount),
+        reason: discountReason,
+        remarks: discountRemarks,
+      });
+      toast.success('Discount applied');
+      setDiscountOpen(false);
+      load();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to apply discount');
+    }
+  };
+
   return (
     <Layout>
       <div className="flex items-center justify-between mb-6">
@@ -198,6 +225,9 @@ export default function QuotationDetail() {
           {canModify && !order && <Button variant="accent" onClick={() => setConfirmOpen(true)}>Confirm Order</Button>}
           {order && order.paymentInfo.pending > 0 && (
             <Button variant="accent" onClick={() => setPaymentOpen(true)}><Plus size={15} /> Record Payment</Button>
+          )}
+          {order && order.paymentInfo.pending > 0 && (
+            <Button variant="outline" onClick={openDiscount}>Settle with Discount</Button>
           )}
           {canModify && <Button variant="danger" onClick={handleCancel}>Cancel</Button>}
         </div>
@@ -528,6 +558,42 @@ export default function QuotationDetail() {
               <Textarea rows={2} value={payRemarks} onChange={(e) => setPayRemarks(e.target.value)} />
             </div>
             <Button type="submit" variant="accent" className="w-full justify-center">Save Payment</Button>
+          </form>
+        </Modal>
+      )}
+
+      {order && (
+        <Modal open={discountOpen} onClose={() => setDiscountOpen(false)} title="Settle with Discount">
+          <form onSubmit={handleDiscount} className="space-y-4">
+            <p className="text-sm text-gray-500">
+              Current total: <strong>{formatCurrency(quotation.total)}</strong> &middot; Paid so far:{' '}
+              <strong>{formatCurrency(order.paymentInfo.paid)}</strong> &middot; Pending:{' '}
+              <strong>{formatCurrency(order.paymentInfo.pending)}</strong>
+            </p>
+            <p className="text-xs text-gray-400">
+              Enter the final settled amount. If it matches what&apos;s already been paid, the pending
+              balance clears to zero and the order moves to Fully Paid.
+            </p>
+            <div>
+              <Label>New Total Amount</Label>
+              <Input
+                type="number"
+                step="0.01"
+                required
+                max={quotation.total}
+                value={discountAmount}
+                onChange={(e) => setDiscountAmount(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label>Reason</Label>
+              <Input value={discountReason} onChange={(e) => setDiscountReason(e.target.value)} placeholder="e.g. Goodwill discount after completion" />
+            </div>
+            <div>
+              <Label>Remarks</Label>
+              <Textarea rows={2} value={discountRemarks} onChange={(e) => setDiscountRemarks(e.target.value)} />
+            </div>
+            <Button type="submit" variant="accent" className="w-full justify-center">Apply Discount</Button>
           </form>
         </Modal>
       )}

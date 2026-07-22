@@ -127,20 +127,20 @@ export default function Bills() {
 
   return (
     <Layout>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>
           <p className="text-xs text-gray-400 mb-1">Dashboard &gt; Bills</p>
           <h1 className="text-2xl font-bold text-navy-900">Bills</h1>
-          <p className="text-sm text-gray-500">Every Memo and GST bill issued — create directly for any customer, or from a confirmed order.</p>
+          <p className="text-sm text-gray-500 max-w-xl">Every Memo and GST bill issued — create directly for any customer, or from a confirmed order.</p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => navigate('/bills/new?type=Memo')}><Plus size={15} /> New Memo</Button>
-          <Button variant="accent" onClick={() => navigate('/bills/new?type=GST')}><Plus size={15} /> New GST Bill</Button>
+        <div className="flex gap-2 w-full sm:w-auto">
+          <Button variant="outline" className="flex-1 sm:flex-initial justify-center" onClick={() => navigate('/bills/new?type=Memo')}><Plus size={15} /> New Memo</Button>
+          <Button variant="accent" className="flex-1 sm:flex-initial justify-center" onClick={() => navigate('/bills/new?type=GST')}><Plus size={15} /> New GST Bill</Button>
         </div>
       </div>
 
-      <div className="flex gap-3 mb-4 items-center">
-        <div className="flex bg-gray-100 rounded-lg p-1 text-xs font-semibold">
+      <div className="flex flex-col sm:flex-row gap-3 mb-4 sm:items-center">
+        <div className="flex bg-gray-100 rounded-lg p-1 text-xs font-semibold w-fit">
           {TYPE_TABS.map((t) => (
             <button
               key={t.key}

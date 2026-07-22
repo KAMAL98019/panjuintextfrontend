@@ -82,13 +82,13 @@ export default function Products() {
 
   return (
     <Layout>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>
           <p className="text-xs text-gray-400 mb-1">Dashboard &gt; Products</p>
           <h1 className="text-2xl font-bold text-navy-900">Product Management</h1>
-          <p className="text-sm text-gray-500">Manage all products, pricing, GST and categories used in quotations.</p>
+          <p className="text-sm text-gray-500 max-w-xl">Manage all products, pricing, GST and categories used in quotations.</p>
         </div>
-        <Button variant="accent" onClick={() => { setEditing(null); setModalOpen(true); }}><Plus size={15} /> Add New Product</Button>
+        <Button variant="accent" className="w-full sm:w-auto justify-center" onClick={() => { setEditing(null); setModalOpen(true); }}><Plus size={15} /> Add New Product</Button>
       </div>
 
       <div className="mb-4">

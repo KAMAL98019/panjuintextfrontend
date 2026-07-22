@@ -8,6 +8,7 @@ export const updateOrderTracking = (id, data) => apiClient.patch(`/orders/${id}/
 
 export const listPayments = (orderId) => apiClient.get(`/orders/${orderId}/payments`);
 export const createPayment = (orderId, data) => apiClient.post(`/orders/${orderId}/payments`, data);
+export const applyDiscount = (orderId, data) => apiClient.post(`/orders/${orderId}/discount`, data);
 
 export const listBills = (orderId) => apiClient.get(`/orders/${orderId}/bills`);
 export const createBill = (orderId, billType, customFields, items) =>

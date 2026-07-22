@@ -259,7 +259,7 @@ export default function BillFormPage() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div><Label>Name</Label><Input value={newCustomer.name} onChange={(e) => setNewCustomer({ ...newCustomer, name: e.target.value })} /></div>
                     <div><Label>Mobile</Label><Input value={newCustomer.mobile} onChange={(e) => setNewCustomer({ ...newCustomer, mobile: e.target.value })} /></div>
                   </div>
@@ -285,16 +285,16 @@ export default function BillFormPage() {
             <h3 className="font-bold text-navy-900">{billType === 'Memo' ? 'Memo Details' : 'Invoice Details'}</h3>
             {billType === 'Memo' ? (
               <>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div><Label>Name (on Memo)</Label><Input value={fields.recipientName} onChange={setField('recipientName')} placeholder="Defaults to customer name" /></div>
                   <div><Label>Cell</Label><Input value={fields.recipientCell} onChange={setField('recipientCell')} placeholder="Defaults to customer mobile" /></div>
                 </div>
                 <div><Label>Address (on Memo)</Label><Textarea rows={2} value={fields.deliveryAddress} onChange={setField('deliveryAddress')} placeholder="Defaults to customer address" /></div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div><Label>Materials Delivery Date</Label><Input type="date" value={fields.materialsDeliveryDate} onChange={setField('materialsDeliveryDate')} /></div>
                   <div><Label>Job Execution Period</Label><Input value={fields.jobExecutionPeriod} onChange={setField('jobExecutionPeriod')} placeholder="e.g. 15 working days" /></div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div><Label>Remarks</Label><Input value={fields.remarks} onChange={setField('remarks')} /></div>
                   {!order && (
                     <div><Label>Advance Payment (₹)</Label><Input type="number" min="0" value={fields.advancePayment} onChange={setField('advancePayment')} placeholder="0" /></div>
@@ -303,11 +303,11 @@ export default function BillFormPage() {
               </>
             ) : (
               <>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div><Label>Place of Supply</Label><Input value={fields.placeOfSupply} onChange={setField('placeOfSupply')} placeholder="Defaults to customer state" /></div>
                   <div><Label>Date of Supply</Label><Input type="date" value={fields.dateOfSupply} onChange={setField('dateOfSupply')} /></div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div><Label>Mode of Transport</Label><Input value={fields.modeOfTransport} onChange={setField('modeOfTransport')} placeholder="e.g. Own vehicle" /></div>
                   <div><Label>Vehicle No.</Label><Input value={fields.vehicleNo} onChange={setField('vehicleNo')} /></div>
                 </div>

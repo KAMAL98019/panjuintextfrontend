@@ -36,7 +36,7 @@ export default function CustomerForm({ initialValues, onSuccess }) {
         <ErrorText>{errors.name}</ErrorText>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <Label>Mobile Number</Label>
           <Input {...register('mobile', { required: 'Mobile is required' })} placeholder="+91 00000 00000" />
@@ -60,7 +60,7 @@ export default function CustomerForm({ initialValues, onSuccess }) {
         <ErrorText>{errors.address}</ErrorText>
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div>
           <Label>City (Optional)</Label>
           <Input {...register('city')} placeholder="Optional" />
@@ -75,7 +75,7 @@ export default function CustomerForm({ initialValues, onSuccess }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <Label>GST Number (Optional)</Label>
           <Input {...register('gstNumber')} placeholder="22AAAAA0000A1Z5" />

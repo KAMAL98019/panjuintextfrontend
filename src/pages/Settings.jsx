@@ -54,7 +54,7 @@ export default function Settings() {
               <Label>Registered Address</Label>
               <Input {...register('address', { required: true })} />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label>Primary Contact Email</Label>
                 <Input type="email" {...register('email', { required: true })} />
@@ -80,7 +80,7 @@ export default function Settings() {
 
           <section className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">
             <h3 className="font-bold text-navy-900">Document Number Prefixes</h3>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label>Quotation Prefix</Label>
                 <Input {...register('quotationPrefix')} />

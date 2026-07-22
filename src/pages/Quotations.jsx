@@ -280,15 +280,15 @@ export default function Quotations() {
 
   return (
     <Layout>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>
           <p className="text-xs text-gray-400 mb-1">Dashboard &gt; Quotations</p>
           <h1 className="text-2xl font-bold text-navy-900">Quotation Management</h1>
-          <p className="text-sm text-gray-500">Manage, track, and version-control project estimates from a single hub.</p>
+          <p className="text-sm text-gray-500 max-w-xl">Manage, track, and version-control project estimates from a single hub.</p>
         </div>
-        <div className="flex gap-2">
-          <div className="relative">
-            <Button variant="outline" onClick={() => setExportMenuOpen((o) => !o)} disabled={exporting}>
+        <div className="flex gap-2 w-full sm:w-auto">
+          <div className="relative flex-1 sm:flex-initial">
+            <Button variant="outline" className="w-full justify-center" onClick={() => setExportMenuOpen((o) => !o)} disabled={exporting}>
               {exporting ? 'Exporting...' : 'Export'}
             </Button>
             {exportMenuOpen && (
@@ -302,7 +302,7 @@ export default function Quotations() {
               </>
             )}
           </div>
-          <Button variant="accent" onClick={() => navigate('/quotations/new')}><Plus size={15} /> Create Quotation</Button>
+          <Button variant="accent" className="flex-1 sm:flex-initial justify-center" onClick={() => navigate('/quotations/new')}><Plus size={15} /> Create Quotation</Button>
         </div>
       </div>
 

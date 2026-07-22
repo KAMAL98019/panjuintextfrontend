@@ -246,7 +246,7 @@ export default function QuotationFormPage() {
                   <Label>Full Name</Label>
                   <Input {...register('customer.name')} placeholder="Enter client name" />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <Label>Phone Number</Label>
                     <Input {...register('customer.mobile')} placeholder="+91 00000 00000" />
@@ -260,7 +260,7 @@ export default function QuotationFormPage() {
                   <Label>Project Address</Label>
                   <Textarea rows={2} {...register('customer.address')} placeholder="Suite, Street, Landmark..." />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <Label>GST Number (Optional)</Label>
                     <Input {...register('customer.gstNumber')} placeholder="22AAAAA0000A1Z5" />
@@ -279,7 +279,7 @@ export default function QuotationFormPage() {
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-4 mt-4 pt-4 border-t border-gray-100">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4 pt-4 border-t border-gray-100">
               <div>
                 <Label>Quotation Type</Label>
                 <Select {...register('quotationType')}>
@@ -324,7 +324,7 @@ export default function QuotationFormPage() {
                     <Input {...register(`items.${index}.description`, { required: true })} />
                   </div>
 
-                  <div className="grid grid-cols-6 gap-2 items-end">
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-6 items-end">
                     <div>
                       <Label>HSN</Label>
                       <Input {...register(`items.${index}.hsnCode`)} />
