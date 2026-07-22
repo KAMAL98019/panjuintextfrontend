@@ -4,8 +4,8 @@ import { formatDate } from '../../utils/format';
 
 const A4_W = 595.28; // pt — same coordinate system as the PDF renderer
 const A4_H = 841.89;
-const ZONE_TOP = 119;
-const ZONE_BOTTOM = 97;
+const ZONE_TOP = 116;
+const ZONE_BOTTOM = 92;
 const ZONE_H = A4_H - ZONE_TOP - ZONE_BOTTOM;
 
 const money = (n, decimals = true) => {
@@ -106,7 +106,7 @@ export default function QuotationPreviewCard({ company, customer, quotationNumbe
               backgroundImage: "url('/images/letterhead-a4.png')", backgroundSize: '100% 100%',
             }}
           >
-            <div className="absolute overflow-hidden" style={{ left: 45, top: ZONE_TOP, width: 340, bottom: ZONE_BOTTOM }}>
+            <div className="absolute overflow-hidden" style={{ left: 45, top: ZONE_TOP, width: 415, bottom: ZONE_BOTTOM }}>
               {sheet.first && (
                 <>
                   <div className="flex justify-between items-start mb-3">
@@ -136,7 +136,7 @@ export default function QuotationPreviewCard({ company, customer, quotationNumbe
                 </>
               )}
 
-              <table className="w-full border-collapse text-[8.5px] mb-2" style={{ tableLayout: 'fixed' }}>
+              <table className="border-collapse text-[8.5px] mb-2" style={{ tableLayout: 'fixed', width: 340 }}>
                 <tbody>
                   {renderItemsRows(sheet.items)}
                   {sheet.tail && (
