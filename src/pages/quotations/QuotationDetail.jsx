@@ -175,16 +175,20 @@ export default function QuotationDetail() {
   };
 
   const openDiscount = () => {
-    setDiscountAmount(String(order.paymentInfo.paid));
+    setDiscountAmount(String(order.paymentInfo.pending));
     setDiscountReason(''); setDiscountRemarks('');
     setDiscountOpen(true);
   };
+
+  const discountNum = Number(discountAmount) || 0;
+  const discountNewTotal = order ? quotation.total - discountNum : 0;
+  const discountNewPending = order ? Math.max(discountNewTotal - order.paymentInfo.paid, 0) : 0;
 
   const handleDiscount = async (e) => {
     e.preventDefault();
     try {
       await ordersApi.applyDiscount(order.id, {
-        newAmount: Number(discountAmount),
+        newAmount: discountNewTotal,
         reason: discountReason,
         remarks: discountRemarks,
       });
@@ -571,19 +575,24 @@ export default function QuotationDetail() {
               <strong>{formatCurrency(order.paymentInfo.pending)}</strong>
             </p>
             <p className="text-xs text-gray-400">
-              Enter the final settled amount. If it matches what&apos;s already been paid, the pending
-              balance clears to zero and the order moves to Fully Paid.
+              Enter how much to write off. Prefilled with the full pending balance — lower it for a
+              partial discount.
             </p>
             <div>
-              <Label>New Total Amount</Label>
+              <Label>Discount Amount</Label>
               <Input
                 type="number"
                 step="0.01"
                 required
+                min="0.01"
                 max={quotation.total}
                 value={discountAmount}
                 onChange={(e) => setDiscountAmount(e.target.value)}
               />
+            </div>
+            <div className="bg-gray-50 rounded-lg p-3 text-sm space-y-1">
+              <div className="flex justify-between"><span className="text-gray-500">New Total</span><span className="font-medium">{formatCurrency(discountNewTotal)}</span></div>
+              <div className="flex justify-between"><span className="text-gray-500">New Pending</span><span className="font-bold text-navy-900">{formatCurrency(discountNewPending)}</span></div>
             </div>
             <div>
               <Label>Reason</Label>
