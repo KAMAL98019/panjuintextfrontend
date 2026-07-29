@@ -65,12 +65,8 @@ function RowActionsMenu({ quotation: q, onPreview, onCustomize, onShare, onDelet
             {q.status !== 'Confirmed' && q.status !== 'Cancelled' && (
               <Item icon={Pencil} label="Edit Quotation" onClick={() => navigate(`/quotations/${q.id}/edit`)} />
             )}
-            {q.status !== 'Confirmed' && (
-              <>
-                <div className="border-t border-gray-100 my-1" />
-                <Item icon={Trash2} label="Delete" danger onClick={onDelete} />
-              </>
-            )}
+            <div className="border-t border-gray-100 my-1" />
+            <Item icon={Trash2} label="Delete" danger onClick={onDelete} />
           </div>
         </>
       )}
@@ -116,7 +112,7 @@ export default function Quotations() {
         setPagination(res.data.pagination);
       })
       .finally(() => setLoading(false));
-    quotationsApi.getQuotationStats().then((res) => setStats(res.data.data));
+    quotationsApi.getQuotationStats(filterParams()).then((res) => setStats(res.data.data));
   }, [page, filterParams]);
 
   useEffect(() => { load(); }, [load]);
@@ -152,9 +148,20 @@ export default function Quotations() {
 
 
   const handleDelete = async (quotation) => {
+    const order = quotation.order;
+    const paidTotal = order?.payments?.reduce((sum, p) => sum + p.amount, 0) || 0;
+    const billCount = order?.bills?.length || 0;
+
+    const message = order
+      ? `This quotation has a confirmed order (${order.orderNumber}) with ${
+          paidTotal > 0 ? `${formatCurrency(paidTotal)} in recorded payments` : 'no payments recorded'
+        }${billCount > 0 ? ` and ${billCount} generated bill${billCount > 1 ? 's' : ''}` : ''}. Deleting ` +
+        `${quotation.quotationNumber} permanently removes the order, its payment history, and those bills along with it. This cannot be undone.`
+      : `This permanently removes the quotation for ${quotation.customer?.name || 'this customer'} along with its revision history. This cannot be undone.`;
+
     const ok = await confirm({
       title: `Delete ${quotation.quotationNumber}?`,
-      message: `This permanently removes the quotation for ${quotation.customer?.name || 'this customer'} along with its revision history. This cannot be undone.`,
+      message,
       confirmText: 'Delete',
       danger: true,
     });

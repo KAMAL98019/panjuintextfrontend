@@ -1,7 +1,7 @@
 import apiClient from './client';
 
 export const listQuotations = (params) => apiClient.get('/quotations', { params });
-export const getQuotationStats = () => apiClient.get('/quotations/stats');
+export const getQuotationStats = (params) => apiClient.get('/quotations/stats', { params });
 export const getQuotation = (id) => apiClient.get(`/quotations/${id}`);
 export const createQuotation = (data) => apiClient.post('/quotations', data);
 export const updateQuotation = (id, data) => apiClient.put(`/quotations/${id}`, data);
