@@ -107,10 +107,6 @@ export default function QuotationDetail() {
       toast.error('Every item needs a description, quantity and rate');
       return;
     }
-    if (quotation.status === 'Confirmed' && !reason.trim()) {
-      toast.error('A reason is required to edit a confirmed quotation');
-      return;
-    }
     try {
       const items = reviseItems.map((item) => ({
         ...item,
@@ -483,18 +479,17 @@ export default function QuotationDetail() {
                 <AlertTriangle size={15} className="shrink-0 mt-0.5" />
                 <span>
                   This order is already confirmed — editing the items here changes the live total and is
-                  logged to the history below. A reason is required.
+                  logged to the history below.
                 </span>
               </div>
             )}
             <ItemsEditor items={reviseItems} onChange={setReviseItems} mode={reviseMode} />
             <div>
-              <Label>Reason{quotation.status === 'Confirmed' ? ' (required)' : ''}</Label>
+              <Label>Reason</Label>
               <Input
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 placeholder="e.g. Customer bargained"
-                required={quotation.status === 'Confirmed'}
               />
             </div>
             <div>
@@ -664,8 +659,8 @@ export default function QuotationDetail() {
               </div>
             )}
             <div>
-              <Label>Reason (required)</Label>
-              <Input required value={discountReason} onChange={(e) => setDiscountReason(e.target.value)} placeholder="e.g. Goodwill discount after completion" />
+              <Label>Reason</Label>
+              <Input value={discountReason} onChange={(e) => setDiscountReason(e.target.value)} placeholder="e.g. Goodwill discount after completion" />
             </div>
             <div>
               <Label>Remarks</Label>
@@ -703,8 +698,8 @@ export default function QuotationDetail() {
               <div className="flex justify-between"><span className="text-gray-500">New Pending</span><span className="font-bold text-navy-900">{formatCurrency(correctNewPending)}</span></div>
             </div>
             <div>
-              <Label>Reason (required)</Label>
-              <Input required value={correctReason} onChange={(e) => setCorrectReason(e.target.value)} placeholder="e.g. Fixing a mistaken discount" />
+              <Label>Reason</Label>
+              <Input value={correctReason} onChange={(e) => setCorrectReason(e.target.value)} placeholder="e.g. Fixing a mistaken discount" />
             </div>
             <div>
               <Label>Remarks</Label>
