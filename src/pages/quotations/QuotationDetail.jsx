@@ -51,6 +51,11 @@ export default function QuotationDetail() {
   const [discountReason, setDiscountReason] = useState('');
   const [discountRemarks, setDiscountRemarks] = useState('');
 
+  const [correctOpen, setCorrectOpen] = useState(false);
+  const [correctTotal, setCorrectTotal] = useState('');
+  const [correctReason, setCorrectReason] = useState('');
+  const [correctRemarks, setCorrectRemarks] = useState('');
+
   const [previewTab, setPreviewTab] = useState(null); // 'quotation' | 'memo' | 'gst' | null
 
   const load = useCallback(() => {
@@ -100,6 +105,10 @@ export default function QuotationDetail() {
     e.preventDefault();
     if (reviseItems.length === 0 || reviseItems.some((i) => !i.description || !i.quantity || !i.unitPrice)) {
       toast.error('Every item needs a description, quantity and rate');
+      return;
+    }
+    if (quotation.status === 'Confirmed' && !reason.trim()) {
+      toast.error('A reason is required to edit a confirmed quotation');
       return;
     }
     try {
@@ -199,7 +208,7 @@ export default function QuotationDetail() {
       if (!ok) return;
     }
     try {
-      await ordersApi.applyDiscount(order.id, {
+      await ordersApi.correctAmount(order.id, {
         newAmount: discountNewTotal,
         reason: discountReason,
         remarks: discountRemarks,
@@ -209,6 +218,30 @@ export default function QuotationDetail() {
       load();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to apply discount');
+    }
+  };
+
+  const openCorrect = () => {
+    setCorrectTotal(String(quotation.total));
+    setCorrectReason(''); setCorrectRemarks('');
+    setCorrectOpen(true);
+  };
+
+  const correctNewPending = order ? Math.max((Number(correctTotal) || 0) - order.paymentInfo.paid, 0) : 0;
+
+  const handleCorrect = async (e) => {
+    e.preventDefault();
+    try {
+      await ordersApi.correctAmount(order.id, {
+        newAmount: Number(correctTotal) || 0,
+        reason: correctReason,
+        remarks: correctRemarks,
+      });
+      toast.success('Amount corrected');
+      setCorrectOpen(false);
+      load();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to correct amount');
     }
   };
 
@@ -237,7 +270,7 @@ export default function QuotationDetail() {
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => setPreviewTab('quotation')}><FileText size={15} /> View Documents</Button>
           {canModify && <Button variant="outline" onClick={() => navigate(`/quotations/${id}/edit`)}><Pencil size={14} /> Edit</Button>}
-          {canModify && <Button variant="outline" onClick={openRevise}>Revise Amount</Button>}
+          {quotation.status !== 'Cancelled' && <Button variant="outline" onClick={openRevise}>Revise Amount</Button>}
           {canModify && !order && <Button variant="accent" onClick={() => setConfirmOpen(true)}>Confirm Order</Button>}
           {order && order.paymentInfo.pending > 0 && (
             <Button variant="accent" onClick={() => setPaymentOpen(true)}><Plus size={15} /> Record Payment</Button>
@@ -245,6 +278,7 @@ export default function QuotationDetail() {
           {order && order.paymentInfo.pending > 0 && (
             <Button variant="outline" onClick={openDiscount}>Settle with Discount</Button>
           )}
+          {order && <Button variant="outline" onClick={openCorrect}>Correct Amount</Button>}
           {canModify && <Button variant="danger" onClick={handleCancel}>Cancel</Button>}
         </div>
       </div>
@@ -437,17 +471,31 @@ export default function QuotationDetail() {
         </div>
       </div>
 
-      <Modal open={reviseOpen} onClose={() => setReviseOpen(false)} title="Revise Quotation Amount" width="max-w-6xl">
+      <Modal open={reviseOpen} onClose={() => setReviseOpen(false)} title={quotation.status === 'Confirmed' ? 'Edit Confirmed Quotation' : 'Revise Quotation Amount'} width="max-w-6xl">
         <form onSubmit={handleRevise} className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="space-y-4">
             <p className="text-sm text-gray-500">
               Current total: <strong>{formatCurrency(quotation.total)}</strong> — bargain over the actual product/price
               list below, like the paper quotation; the new total is computed from these items.
             </p>
+            {quotation.status === 'Confirmed' && (
+              <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 text-amber-700 rounded-lg p-3 text-xs">
+                <AlertTriangle size={15} className="shrink-0 mt-0.5" />
+                <span>
+                  This order is already confirmed — editing the items here changes the live total and is
+                  logged to the history below. A reason is required.
+                </span>
+              </div>
+            )}
             <ItemsEditor items={reviseItems} onChange={setReviseItems} mode={reviseMode} />
             <div>
-              <Label>Reason</Label>
-              <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Customer bargained" />
+              <Label>Reason{quotation.status === 'Confirmed' ? ' (required)' : ''}</Label>
+              <Input
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                placeholder="e.g. Customer bargained"
+                required={quotation.status === 'Confirmed'}
+              />
             </div>
             <div>
               <Label>Remarks</Label>
@@ -616,14 +664,53 @@ export default function QuotationDetail() {
               </div>
             )}
             <div>
-              <Label>Reason</Label>
-              <Input value={discountReason} onChange={(e) => setDiscountReason(e.target.value)} placeholder="e.g. Goodwill discount after completion" />
+              <Label>Reason (required)</Label>
+              <Input required value={discountReason} onChange={(e) => setDiscountReason(e.target.value)} placeholder="e.g. Goodwill discount after completion" />
             </div>
             <div>
               <Label>Remarks</Label>
               <Textarea rows={2} value={discountRemarks} onChange={(e) => setDiscountRemarks(e.target.value)} />
             </div>
             <Button type="submit" variant="accent" className="w-full justify-center">Apply Discount</Button>
+          </form>
+        </Modal>
+      )}
+
+      {order && (
+        <Modal open={correctOpen} onClose={() => setCorrectOpen(false)} title="Correct Amount">
+          <form onSubmit={handleCorrect} className="space-y-4">
+            <p className="text-sm text-gray-500">
+              Current total: <strong>{formatCurrency(quotation.total)}</strong> &middot; Paid so far:{' '}
+              <strong>{formatCurrency(order.paymentInfo.paid)}</strong> &middot; Pending:{' '}
+              <strong>{formatCurrency(order.paymentInfo.pending)}</strong>
+            </p>
+            <p className="text-xs text-gray-400">
+              Fixes a mistaken figure on an already-confirmed order — unlike Settle with Discount, this
+              can move the total up as well as down.
+            </p>
+            <div>
+              <Label>New Total Amount</Label>
+              <Input
+                type="number"
+                step="0.01"
+                required
+                min="0"
+                value={correctTotal}
+                onChange={(e) => setCorrectTotal(e.target.value)}
+              />
+            </div>
+            <div className="bg-gray-50 rounded-lg p-3 text-sm">
+              <div className="flex justify-between"><span className="text-gray-500">New Pending</span><span className="font-bold text-navy-900">{formatCurrency(correctNewPending)}</span></div>
+            </div>
+            <div>
+              <Label>Reason (required)</Label>
+              <Input required value={correctReason} onChange={(e) => setCorrectReason(e.target.value)} placeholder="e.g. Fixing a mistaken discount" />
+            </div>
+            <div>
+              <Label>Remarks</Label>
+              <Textarea rows={2} value={correctRemarks} onChange={(e) => setCorrectRemarks(e.target.value)} />
+            </div>
+            <Button type="submit" variant="accent" className="w-full justify-center">Save Correction</Button>
           </form>
         </Modal>
       )}
