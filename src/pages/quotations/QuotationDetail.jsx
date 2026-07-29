@@ -186,6 +186,18 @@ export default function QuotationDetail() {
 
   const handleDiscount = async (e) => {
     e.preventDefault();
+    if (discountNewTotal <= 0) {
+      const ok = await confirm({
+        title: 'Waive the entire bill?',
+        message: order.paymentInfo.paid > 0
+          ? `This writes the total down to ${formatCurrency(0)} — the client owes nothing further.`
+          : `No payment has been received on this order yet, and this discount writes the total down to ${formatCurrency(0)} — the client will owe nothing at all. Make sure that's intended.`,
+        confirmText: 'Waive It',
+        cancelText: 'Cancel',
+        danger: true,
+      });
+      if (!ok) return;
+    }
     try {
       await ordersApi.applyDiscount(order.id, {
         newAmount: discountNewTotal,
@@ -594,6 +606,15 @@ export default function QuotationDetail() {
               <div className="flex justify-between"><span className="text-gray-500">New Total</span><span className="font-medium">{formatCurrency(discountNewTotal)}</span></div>
               <div className="flex justify-between"><span className="text-gray-500">New Pending</span><span className="font-bold text-navy-900">{formatCurrency(discountNewPending)}</span></div>
             </div>
+            {discountNewTotal <= 0 && (
+              <div className="flex items-start gap-2 bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 text-xs">
+                <AlertTriangle size={15} className="shrink-0 mt-0.5" />
+                <span>
+                  This waives the entire bill — total drops to {formatCurrency(0)} and the client owes nothing.
+                  {order.paymentInfo.paid <= 0 && ' No payment has been received on this order yet.'}
+                </span>
+              </div>
+            )}
             <div>
               <Label>Reason</Label>
               <Input value={discountReason} onChange={(e) => setDiscountReason(e.target.value)} placeholder="e.g. Goodwill discount after completion" />
