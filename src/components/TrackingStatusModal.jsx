@@ -68,10 +68,14 @@ export default function TrackingStatusModal({ quotation, onClose, onSaved }) {
 
   useEffect(() => {
     if (!quotation) return;
-    // Payment-derived order statuses (AdvancePaid/FullyPaid) aren't manually selectable;
-    // show the nearest manual stage as current instead.
+    // Payment-derived order statuses (AdvancePaid, and the legacy FullyPaid value some
+    // already-existing orders still carry) aren't manually selectable; show the nearest
+    // manual stage as current instead — FullyPaid means the job reads as done, everything
+    // else (e.g. AdvancePaid) just means the order hasn't left "Confirmed" yet.
     const current = isConfirmed
-      ? (WORK_STEPS.some((s) => s.value === order.currentStatus) ? order.currentStatus : 'Confirmed')
+      ? (WORK_STEPS.some((s) => s.value === order.currentStatus)
+          ? order.currentStatus
+          : (order.currentStatus === 'FullyPaid' ? 'Completed' : 'Confirmed'))
       : (QUOTATION_STEPS.some((s) => s.value === quotation.status) ? quotation.status : 'Draft');
     setSelected(current);
     setNotes(quotation.remarks || '');
