@@ -17,6 +17,21 @@ export default function WhatsApp() {
   const [selectedTemplateId, setSelectedTemplateId] = useState(null);
   const [editingTemplateId, setEditingTemplateId] = useState(null);
   const [message, setMessage] = useState('');
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState('');
+
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setImageFile(file);
+      setImagePreview(URL.createObjectURL(file));
+    }
+  };
+
+  const handleRemoveImage = () => {
+    setImageFile(null);
+    setImagePreview('');
+  };
 
   const [customers, setCustomers] = useState([]);
   const [selectedCustomerIds, setSelectedCustomerIds] = useState([]);
@@ -105,14 +120,21 @@ export default function WhatsApp() {
     if (!ok) return;
     setBroadcasting(true);
     try {
-      const res = await whatsappApi.broadcastGreeting({
-        message,
-        customerIds: audienceMode === 'selected' ? selectedCustomerIds : undefined,
-        delayMs: 6000,
-      });
+      const formData = new FormData();
+      formData.append('message', message);
+      if (audienceMode === 'selected') {
+        formData.append('customerIds', JSON.stringify(selectedCustomerIds));
+      }
+      if (imageFile) {
+        formData.append('image', imageFile);
+      }
+
+      const res = await whatsappApi.broadcastGreeting(formData);
       toast.success(res.data.message);
       setSinceTs(new Date().toISOString());
       setLogs([]);
+      setImageFile(null);
+      setImagePreview('');
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to start broadcast');
     } finally {
@@ -226,6 +248,41 @@ export default function WhatsApp() {
         <div>
           <Label>Message to Send</Label>
           <Textarea rows={3} value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Pick a template above or write a custom message..." />
+        </div>
+
+        <div className="mt-3">
+          <Label>Attach Greeting Poster (Optional)</Label>
+          <div className="flex items-center gap-3 mt-1">
+            <input
+              type="file"
+              accept="image/*"
+              id="greeting-poster"
+              className="hidden"
+              onChange={handleImageChange}
+            />
+            <label
+              htmlFor="greeting-poster"
+              className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold cursor-pointer border border-gray-300 inline-block"
+            >
+              Choose Image
+            </label>
+            {imageFile && (
+              <span className="text-xs text-gray-500 truncate max-w-xs">{imageFile.name}</span>
+            )}
+          </div>
+
+          {imagePreview && (
+            <div className="relative mt-2 inline-block">
+              <img src={imagePreview} alt="Preview" className="h-24 w-auto object-cover rounded-lg border border-gray-300" />
+              <button
+                type="button"
+                onClick={handleRemoveImage}
+                className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold shadow-md hover:bg-red-600 animate-fade-in"
+              >
+                ×
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="flex items-center gap-4 mt-3 mb-3">

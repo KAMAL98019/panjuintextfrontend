@@ -48,13 +48,10 @@ export default function QuotationPreviewCard({ company, customer, quotationNumbe
 
   const grossTotal = items.reduce((sum, item) => sum + taxableAmount(item), 0);
   const gstGroups = isGst ? groupByGstRatePreview(items) : [];
-  const gstFromItems = gstGroups.reduce((sum, g) => sum + g.taxAmount, 0);
-  const computedGrand = (subtotal ?? grossTotal) - (discountAmount || 0) + gstFromItems;
-  const negotiatedDiff = total !== undefined && total !== null ? computedGrand - Number(total) : 0;
 
   // ----- Paginate: header block on sheet 1, items flow across sheets, totals/note/footer at the end
   const headerH = 207;
-  const totalsRowCount = 2 + gstGroups.length + (discountAmount > 0 ? 1 : 0) + (Math.abs(negotiatedDiff) > 0.5 ? 1 : 0);
+  const totalsRowCount = 2 + gstGroups.length + (discountAmount > 0 ? 1 : 0);
   const tailH = totalsRowCount * 17 + 40 + 95; // totals rows + note + footer block
 
   const sheets = [];
@@ -160,13 +157,6 @@ export default function QuotationPreviewCard({ company, customer, quotationNumbe
                           <td className={`${cellBorder} text-right`}>{money(g.taxAmount)}</td>
                         </tr>
                       ))}
-                      {Math.abs(negotiatedDiff) > 0.5 && (
-                        <tr>
-                          <td colSpan={4} className={`${cellBorder} text-center`}>{negotiatedDiff > 0 ? 'Special Discount' : 'Adjustment'}</td>
-                          <td className={`${cellBorder} text-center`}>=</td>
-                          <td className={`${cellBorder} text-right`}>{money(-negotiatedDiff)}</td>
-                        </tr>
-                      )}
                       <tr>
                         <td colSpan={4} className={`${cellBorder} text-center font-bold text-navy-900`}>Grand Total</td>
                         <td className={`${cellBorder} text-center`}>=</td>

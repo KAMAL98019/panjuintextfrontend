@@ -4,7 +4,7 @@ import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf';
 import { X, Printer, Download, ZoomIn, ZoomOut, MessageCircle } from 'lucide-react';
 import Button from './Button';
 import Spinner from './Spinner';
-import { fetchQuotationPdf, fetchBillPdf } from '../api/bills';
+import { fetchQuotationPdf, fetchQuotationPrintPdf, fetchBillPdf } from '../api/bills';
 import { sendDocumentViaWhatsapp } from '../api/whatsapp';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
@@ -109,7 +109,20 @@ export default function DocumentPreviewModal({ quotation, initialTab = 'quotatio
     onRequestCustomize(billType);
   };
 
-  const handlePrint = () => {
+  // Quotation printing uses a body-only PDF (no letterhead artwork) for printing onto
+  // pre-printed letterhead paper stock — fetched fresh, not the cached on-screen preview blob.
+  // Memo/GST Bill printing is unaffected.
+  const handlePrint = async () => {
+    if (activeTab === 'quotation') {
+      try {
+        const printDoc = await fetchQuotationPrintPdf(quotation.id);
+        const win = window.open(printDoc.blobUrl, '_blank');
+        if (win) win.addEventListener('load', () => win.print());
+      } catch (err) {
+        toast.error('Failed to prepare print document');
+      }
+      return;
+    }
     const doc = docs[activeTab];
     if (!doc) return;
     const win = window.open(doc.blobUrl, '_blank');

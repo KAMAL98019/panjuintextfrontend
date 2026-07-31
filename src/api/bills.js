@@ -18,6 +18,8 @@ async function fetchPdf(path) {
 
 export const fetchBillPdf = (id) => fetchPdf(billPdfPath(id));
 export const fetchQuotationPdf = (id) => fetchPdf(`/quotations/${id}/pdf`);
+// Body-only variant for printing onto pre-printed letterhead paper — skips the artwork.
+export const fetchQuotationPrintPdf = (id) => fetchPdf(`/quotations/${id}/pdf?bodyOnly=1`);
 
 export const listBills = (params) => apiClient.get('/bills', { params });
 export const getBill = (id) => apiClient.get(`/bills/${id}`);
