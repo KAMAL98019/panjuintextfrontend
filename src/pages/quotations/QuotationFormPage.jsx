@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useForm, useFieldArray, Controller } from 'react-hook-form';
+import { useForm, useFieldArray } from 'react-hook-form';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { Plus, Trash2, ArrowLeft } from 'lucide-react';
@@ -11,7 +11,7 @@ import * as customersApi from '../../api/customers';
 import * as productsApi from '../../api/products';
 import * as quotationsApi from '../../api/quotations';
 import { getSettings } from '../../api/settings';
-import { calculateTotalsPreview } from '../../utils/gstPreview';
+import { calculateTotalsPreview, groupByGstRatePreview } from '../../utils/gstPreview';
 import { formatCurrency } from '../../utils/format';
 
 const emptyItem = { description: '', hsnCode: '', quantity: 1, unit: 'sqft', unitPrice: '', discountPercent: 0, gstPercent: 18, productId: '' };
@@ -19,6 +19,10 @@ const emptyItem = { description: '', hsnCode: '', quantity: 1, unit: 'sqft', uni
 // Unsaved typing on this form is kept in localStorage so navigating away (back button,
 // accidental link click, refresh) never loses an in-progress quotation.
 const DRAFT_KEY = 'panjuintext_quotation_draft';
+
+// Compact inputs for the one-row-per-item grid (red border marks a missing required value)
+const cellInput = (hasError) =>
+  `w-full border rounded-md px-2 py-1.5 text-sm outline-none bg-white [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none focus:ring-2 focus:ring-navy-300 focus:border-navy-400 ${hasError ? 'border-red-400' : 'border-gray-200'}`;
 
 export default function QuotationFormPage() {
   const navigate = useNavigate();
@@ -31,7 +35,7 @@ export default function QuotationFormPage() {
   const [settings, setSettings] = useState(null);
   const [customerMode, setCustomerMode] = useState(location.state?.customerId ? 'existing' : 'new');
 
-  const { register, control, handleSubmit, watch, setValue, reset, formState: { isSubmitting } } = useForm({
+  const { register, control, handleSubmit, watch, setValue, reset, formState: { isSubmitting, errors } } = useForm({
     defaultValues: {
       customerId: location.state?.customerId || '',
       customer: { name: '', mobile: '', altMobile: '', email: '', address: '', city: '', state: '', pincode: '', gstNumber: '', customerType: 'Individual' },
@@ -56,8 +60,8 @@ export default function QuotationFormPage() {
     if (!isEdit) return;
     quotationsApi.getQuotation(editId).then((res) => {
       const q = res.data.data;
-      if (['Confirmed', 'Cancelled'].includes(q.status)) {
-        toast.error(`Cannot edit a ${q.status} quotation`);
+      if (q.status === 'Cancelled') {
+        toast.error('Cannot edit a Cancelled quotation');
         navigate(`/quotations/${editId}`);
         return;
       }
@@ -134,6 +138,22 @@ export default function QuotationFormPage() {
     setValue(`items.${index}.gstPercent`, product.gstPercent);
   };
 
+  // The description box doubles as the product picker: an exact product-name match (picked from
+  // the suggestions or typed) fills unit/rate/GST/HSN; anything else is kept as a custom line.
+  const onDescriptionChange = (index, value) => {
+    const product = products.find((p) => p.name.trim().toLowerCase() === value.trim().toLowerCase());
+    setValue(`items.${index}.productId`, product ? String(product.id) : '');
+    if (product) applyProduct(index, product.id);
+  };
+
+  const itemGridColumns = watchType === 'GST'
+    ? '20px minmax(160px, 1fr) 64px 60px 80px 52px 52px 100px 28px'
+    : '20px minmax(160px, 1fr) 64px 60px 80px 52px 100px 28px';
+
+  const onInvalid = () => {
+    toast.error('Every item needs a description, quantity, unit and rate — check the items marked in red');
+  };
+
   const onSubmit = async (values) => {
     if (customerMode === 'existing' && !values.customerId) {
       toast.error('Please select a customer');
@@ -207,8 +227,15 @@ export default function QuotationFormPage() {
         )}
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="space-y-6">
+      <form
+        onSubmit={handleSubmit(onSubmit, onInvalid)}
+        // Enter in a field no longer saves a half-filled quotation (textareas still get new lines)
+        onKeyDown={(e) => { if (e.key === 'Enter' && e.target.tagName === 'INPUT') e.preventDefault(); }}
+        // Scrolling the page over a number box must not silently change it (e.g. GST 18 → 17.98)
+        onWheel={(e) => { if (e.target.type === 'number' && document.activeElement === e.target) e.target.blur(); }}
+        className="grid grid-cols-1 lg:grid-cols-5 gap-6"
+      >
+        <div className="space-y-6 lg:col-span-3 min-w-0">
           <section className="bg-white border border-gray-200 rounded-xl p-5">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-bold text-navy-900">Customer Details</h3>
@@ -302,68 +329,69 @@ export default function QuotationFormPage() {
               </Button>
             </div>
 
-            <div className="space-y-4">
-              {fields.map((field, index) => (
-                <div key={field.id} className="border border-gray-100 rounded-lg p-3">
-                  <div className="mb-2">
-                    <Label>Select Item — auto-fills rate, HSN & GST from Product Master</Label>
-                    <Controller
-                      control={control}
-                      name={`items.${index}.productId`}
-                      render={({ field: f }) => (
-                        <Select {...f} onChange={(e) => { f.onChange(e); applyProduct(index, e.target.value); }}>
-                          <option value="">Type a custom line manually...</option>
-                          {products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                        </Select>
-                      )}
-                    />
-                  </div>
-
-                  <div className="mb-2">
-                    <Label>Description (e.g. "Hall Zebra Blinds", "Bed Room Zebra Blinds")</Label>
-                    <Input {...register(`items.${index}.description`, { required: true })} />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-6 items-end">
-                    <div>
-                      <Label>HSN</Label>
-                      <Input {...register(`items.${index}.hsnCode`)} />
-                    </div>
-                    <div>
-                      <Label>Qty</Label>
-                      <Input type="number" step="0.01" {...register(`items.${index}.quantity`, { required: true, min: 0.01 })} />
-                    </div>
-                    <div>
-                      <Label>Unit</Label>
-                      <Input {...register(`items.${index}.unit`, { required: true })} />
-                    </div>
-                    <div>
-                      <Label>Rate</Label>
-                      <Input type="number" step="0.01" {...register(`items.${index}.unitPrice`, { required: true, min: 0 })} />
-                    </div>
-                    <div>
-                      <Label>Disc %</Label>
-                      <Input type="number" step="0.01" {...register(`items.${index}.discountPercent`)} />
-                    </div>
-                    {watchType === 'GST' && (
-                      <div>
-                        <Label>GST %</Label>
-                        <Input type="number" step="0.01" {...register(`items.${index}.gstPercent`)} />
-                      </div>
-                    )}
-                  </div>
-
-                  {fields.length > 1 && (
-                    <button
-                      type="button"
-                      className="flex items-center gap-1 text-xs text-red-500 mt-2"
-                      onClick={() => remove(index)}
-                    >
-                      <Trash2 size={13} /> Remove item
-                    </button>
-                  )}
-                </div>
+            {/* Typing suggests matching products; picking one fills unit, rate & GST. Anything else is a custom line. */}
+            <datalist id="quotation-product-options">
+              {products.map((p) => (
+                <option key={p.id} value={p.name}>{`₹${p.defaultRate} / ${p.unit}`}</option>
               ))}
+            </datalist>
+
+            <div className="overflow-x-auto -mx-1 px-1">
+              <div className="min-w-[640px]">
+                <div className="grid gap-2 px-1 pb-2 text-[11px] font-semibold uppercase text-gray-400 border-b border-gray-100" style={{ gridTemplateColumns: itemGridColumns }}>
+                  <span>#</span>
+                  <span>Item / Description *</span>
+                  <span>Qty *</span>
+                  <span>Unit</span>
+                  <span>Rate ₹ *</span>
+                  <span>Disc %</span>
+                  {watchType === 'GST' && <span>GST %</span>}
+                  <span className="text-right">Amount</span>
+                  <span />
+                </div>
+
+                {fields.map((field, index) => {
+                  const line = watchItems?.[index] || {};
+                  const lineAmount = (Number(line.quantity) || 0) * (Number(line.unitPrice) || 0) * (1 - (Number(line.discountPercent) || 0) / 100);
+                  const itemErrors = errors.items?.[index];
+                  const descField = register(`items.${index}.description`, { required: true });
+                  return (
+                    <div
+                      key={field.id}
+                      className={`grid gap-2 items-center px-1 py-2 border-b border-gray-50 ${itemErrors ? 'bg-red-50/40' : ''}`}
+                      style={{ gridTemplateColumns: itemGridColumns }}
+                    >
+                      <span className="text-xs font-semibold text-gray-400">{index + 1}</span>
+                      <input
+                        {...descField}
+                        onChange={(e) => { descField.onChange(e); onDescriptionChange(index, e.target.value); }}
+                        list="quotation-product-options"
+                        placeholder="Type or pick a product…"
+                        title="Start typing to pick from Products, or type any custom description"
+                        className={cellInput(itemErrors?.description)}
+                      />
+                      <input type="number" step="0.01" {...register(`items.${index}.quantity`, { required: true, min: 0.01 })} className={cellInput(itemErrors?.quantity)} />
+                      <input {...register(`items.${index}.unit`, { required: true })} placeholder="sqft" className={cellInput(itemErrors?.unit)} />
+                      <input type="number" step="0.01" {...register(`items.${index}.unitPrice`, { required: true, min: 0 })} placeholder="0.00" className={cellInput(itemErrors?.unitPrice)} />
+                      <input type="number" step="0.01" {...register(`items.${index}.discountPercent`)} className={cellInput()} />
+                      {watchType === 'GST' && (
+                        <input type="number" step="0.01" {...register(`items.${index}.gstPercent`)} className={cellInput()} />
+                      )}
+                      <span className="text-sm font-semibold text-navy-900 text-right tabular-nums">{formatCurrency(lineAmount)}</span>
+                      {fields.length > 1 ? (
+                        <button
+                          type="button"
+                          className="p-1 rounded-md text-gray-400 hover:text-red-600 hover:bg-red-50 justify-self-center"
+                          title="Remove this item"
+                          onClick={() => remove(index)}
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      ) : <span />}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
 
             <Button type="button" variant="outline" className="w-full justify-center mt-4" onClick={() => append(emptyItem)}>
@@ -389,7 +417,7 @@ export default function QuotationFormPage() {
           </section>
         </div>
 
-        <div>
+        <div className="lg:col-span-2">
           <div className="sticky top-20">
             <div className="bg-gray-100 rounded-t-xl p-4 max-h-[72vh] overflow-y-auto">
               <QuotationPreviewCard
@@ -409,9 +437,18 @@ export default function QuotationFormPage() {
               <p className="bg-amber-50 border-x border-gray-200 text-amber-700 text-xs px-4 py-2">Inter-state — IGST applies</p>
             )}
             <div className="bg-white border border-gray-200 rounded-b-xl p-4">
-              <div className="flex items-center justify-between mb-3">
-                <span className="font-bold text-navy-900">Total</span>
-                <span className="font-bold text-lg text-navy-900">{formatCurrency(totals.total)}</span>
+              <div className="space-y-1 text-sm mb-3">
+                <div className="flex justify-between"><span className="text-gray-500">Gross Total</span><span>{formatCurrency(totals.subtotal)}</span></div>
+                {totals.discountAmount > 0 && (
+                  <div className="flex justify-between"><span className="text-gray-500">Discount</span><span>-{formatCurrency(totals.discountAmount)}</span></div>
+                )}
+                {watchType === 'GST' && groupByGstRatePreview(watchItems || []).map((g) => (
+                  <div key={g.rate} className="flex justify-between"><span className="text-gray-500">GST {g.rate} %</span><span>{formatCurrency(g.taxAmount)}</span></div>
+                ))}
+                <div className="flex items-center justify-between pt-1 border-t border-gray-100">
+                  <span className="font-bold text-navy-900">Grand Total</span>
+                  <span className="font-bold text-lg text-navy-900">{formatCurrency(totals.total)}</span>
+                </div>
               </div>
               <Button type="submit" variant="accent" className="w-full justify-center" disabled={isSubmitting}>
                 {isSubmitting ? 'Saving...' : 'Save Quotation'}

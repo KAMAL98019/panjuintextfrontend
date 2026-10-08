@@ -17,6 +17,7 @@ import * as quotationsApi from '../../api/quotations';
 import * as ordersApi from '../../api/orders';
 import { getSettings } from '../../api/settings';
 import { formatCurrency, formatDate, formatDateTime } from '../../utils/format';
+import { groupByGstRatePreview } from '../../utils/gstPreview';
 
 const ORDER_TIMELINE = [
   'QuotationCreated', 'Sent', 'Negotiation', 'Confirmed', 'AdvancePaid',
@@ -73,17 +74,29 @@ export default function QuotationDetail() {
   const order = quotation.order;
   const reviseMode = quotation.quotationType === 'GST' ? 'gst' : 'nongst';
 
+  // Quotation Amount = the quotation's own Grand Total; Final Amount (total) = what the customer pays
+  const adjustment = Math.round((quotation.total - quotation.quotedTotal) * 100) / 100;
+  const hasAdjustment = Math.abs(adjustment) >= 0.01;
+
+  // Changes made after the order was confirmed move the Final Amount; before that, they're bargaining
+  const confirmedAt = order ? new Date(order.createdAt) : null;
+  const isAfterConfirm = (date) => confirmedAt && new Date(date) > confirmedAt;
+  const revisionsBeforeConfirm = quotation.revisions.filter((r) => !isAfterConfirm(r.createdAt));
+  const amountAtConfirm = revisionsBeforeConfirm.length
+    ? revisionsBeforeConfirm[revisionsBeforeConfirm.length - 1].newAmount
+    : quotation.revisions[0]?.previousAmount ?? quotation.total;
+
   const timelineItems = [
-    { title: `Quotation created (${formatCurrency(quotation.subtotal)} base)`, date: quotation.createdAt },
+    { title: `Quotation created at ${formatCurrency(quotation.revisions[0]?.previousAmount ?? quotation.quotedTotal)}`, date: quotation.createdAt },
     ...quotation.revisions.map((r) => ({
-      title: `Revised: ${formatCurrency(r.previousAmount)} → ${formatCurrency(r.newAmount)}${r.reason ? ` (${r.reason})` : ''}`,
+      title: `${isAfterConfirm(r.createdAt) ? 'Final amount changed' : 'Revised'}: ${formatCurrency(r.previousAmount)} → ${formatCurrency(r.newAmount)}${r.reason ? ` (${r.reason})` : ''}`,
       description: r.remarks,
       date: r.createdAt,
     })),
-    ...(quotation.status === 'Confirmed'
-      ? [{ title: `Order confirmed at ${formatCurrency(quotation.total)}`, date: quotation.updatedAt }]
+    ...(order
+      ? [{ title: `Order confirmed at ${formatCurrency(amountAtConfirm)} (${order.orderNumber})`, date: order.createdAt }]
       : []),
-  ];
+  ].sort((a, b) => new Date(a.date) - new Date(b.date));
 
   const openRevise = () => {
     setReviseItems(
@@ -265,7 +278,7 @@ export default function QuotationDetail() {
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => setPreviewTab('quotation')}><FileText size={15} /> View Documents</Button>
-          {canModify && <Button variant="outline" onClick={() => navigate(`/quotations/${id}/edit`)}><Pencil size={14} /> Edit</Button>}
+          {quotation.status !== 'Cancelled' && <Button variant="outline" onClick={() => navigate(`/quotations/${id}/edit`)}><Pencil size={14} /> Edit</Button>}
           {quotation.status !== 'Cancelled' && <Button variant="outline" onClick={openRevise}>Revise Amount</Button>}
           {canModify && !order && <Button variant="accent" onClick={() => setConfirmOpen(true)}>Confirm Order</Button>}
           {order && order.paymentInfo.pending > 0 && (
@@ -300,20 +313,34 @@ export default function QuotationDetail() {
                     <td className="py-2">{item.quantity} {item.unit}</td>
                     <td className="py-2">{formatCurrency(item.unitPrice)}</td>
                     {quotation.quotationType === 'GST' && <td className="py-2">{item.gstPercent}%</td>}
-                    <td className="py-2 text-right font-medium">{formatCurrency(item.amount)}</td>
+                    {/* Pre-tax row amount, same as the PDF's Quotation Area — GST shows only as the grouped lines below */}
+                    <td className="py-2 text-right font-medium">{formatCurrency(item.quantity * item.unitPrice * (1 - (item.discountPercent || 0) / 100))}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
 
             <div className="mt-4 pt-4 border-t border-gray-100 space-y-1 text-sm max-w-xs ml-auto">
-              <div className="flex justify-between"><span className="text-gray-500">Subtotal</span><span>{formatCurrency(quotation.subtotal)}</span></div>
+              <div className="flex justify-between"><span className="text-gray-500">Gross Total</span><span>{formatCurrency(quotation.subtotal)}</span></div>
               {quotation.discountAmount > 0 && <div className="flex justify-between"><span className="text-gray-500">Discount</span><span>-{formatCurrency(quotation.discountAmount)}</span></div>}
-              {quotation.cgst > 0 && <div className="flex justify-between"><span className="text-gray-500">CGST</span><span>{formatCurrency(quotation.cgst)}</span></div>}
-              {quotation.sgst > 0 && <div className="flex justify-between"><span className="text-gray-500">SGST</span><span>{formatCurrency(quotation.sgst)}</span></div>}
-              {quotation.igst > 0 && <div className="flex justify-between"><span className="text-gray-500">IGST</span><span>{formatCurrency(quotation.igst)}</span></div>}
-              <div className="flex justify-between font-bold text-navy-900 text-base pt-1"><span>Total</span><span>{formatCurrency(quotation.total)}</span></div>
+              {quotation.quotationType === 'GST' && groupByGstRatePreview(quotation.items).map((g) => (
+                <div key={g.rate} className="flex justify-between"><span className="text-gray-500">GST {g.rate} %</span><span>{formatCurrency(g.taxAmount)}</span></div>
+              ))}
+              <div className="flex justify-between font-bold text-navy-900 text-base pt-1"><span>Grand Total</span><span>{formatCurrency(quotation.quotedTotal)}</span></div>
             </div>
+
+            {/* Settlement discounts / corrections after confirmation change only what the customer pays — the quotation itself stays as quoted */}
+            {order && hasAdjustment && (
+              <div className="mt-4 pt-4 border-t border-dashed border-gray-200 space-y-1 text-sm max-w-xs ml-auto">
+                <div className="flex justify-between"><span className="text-gray-500">Quotation Amount</span><span>{formatCurrency(quotation.quotedTotal)}</span></div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">{adjustment < 0 ? 'Less: Settlement / Correction' : 'Add: Correction'}</span>
+                  <span className={adjustment < 0 ? 'text-red-600' : 'text-green-700'}>{adjustment < 0 ? '-' : '+'}{formatCurrency(Math.abs(adjustment))}</span>
+                </div>
+                <div className="flex justify-between font-bold text-navy-900 text-base pt-1"><span>Final Amount</span><span>{formatCurrency(quotation.total)}</span></div>
+                <p className="text-xs text-gray-400 pt-1">Payments and balance are worked out on the Final Amount.</p>
+              </div>
+            )}
           </section>
 
           <section className="bg-white border border-gray-200 rounded-xl p-5">
@@ -458,7 +485,7 @@ export default function QuotationDetail() {
               items={quotation.items}
               subtotal={quotation.subtotal}
               discountAmount={quotation.discountAmount}
-              total={quotation.total}
+              total={quotation.quotedTotal}
               remarks={quotation.remarks}
               terms={quotation.terms}
               validityDays={quotation.validityDays}
@@ -625,9 +652,12 @@ export default function QuotationDetail() {
         <Modal open={discountOpen} onClose={() => setDiscountOpen(false)} title="Settle with Discount">
           <form onSubmit={handleDiscount} className="space-y-4">
             <p className="text-sm text-gray-500">
-              Current total: <strong>{formatCurrency(quotation.total)}</strong> &middot; Paid so far:{' '}
+              Final Amount: <strong>{formatCurrency(quotation.total)}</strong> &middot; Paid so far:{' '}
               <strong>{formatCurrency(order.paymentInfo.paid)}</strong> &middot; Pending:{' '}
               <strong>{formatCurrency(order.paymentInfo.pending)}</strong>
+            </p>
+            <p className="text-xs bg-blue-50 text-blue-700 rounded-lg px-3 py-2">
+              Quotation Amount stays {formatCurrency(quotation.quotedTotal)} — this changes only the Final Amount the customer pays.
             </p>
             <p className="text-xs text-gray-400">
               Enter how much to write off. Prefilled with the full pending balance — lower it for a
@@ -646,14 +676,14 @@ export default function QuotationDetail() {
               />
             </div>
             <div className="bg-gray-50 rounded-lg p-3 text-sm space-y-1">
-              <div className="flex justify-between"><span className="text-gray-500">New Total</span><span className="font-medium">{formatCurrency(discountNewTotal)}</span></div>
+              <div className="flex justify-between"><span className="text-gray-500">New Final Amount</span><span className="font-medium">{formatCurrency(discountNewTotal)}</span></div>
               <div className="flex justify-between"><span className="text-gray-500">New Pending</span><span className="font-bold text-navy-900">{formatCurrency(discountNewPending)}</span></div>
             </div>
             {discountNewTotal <= 0 && (
               <div className="flex items-start gap-2 bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 text-xs">
                 <AlertTriangle size={15} className="shrink-0 mt-0.5" />
                 <span>
-                  This waives the entire bill — total drops to {formatCurrency(0)} and the client owes nothing.
+                  This waives the entire bill — Final Amount drops to {formatCurrency(0)} and the client owes nothing.
                   {order.paymentInfo.paid <= 0 && ' No payment has been received on this order yet.'}
                 </span>
               </div>
@@ -675,16 +705,19 @@ export default function QuotationDetail() {
         <Modal open={correctOpen} onClose={() => setCorrectOpen(false)} title="Correct Amount">
           <form onSubmit={handleCorrect} className="space-y-4">
             <p className="text-sm text-gray-500">
-              Current total: <strong>{formatCurrency(quotation.total)}</strong> &middot; Paid so far:{' '}
+              Final Amount: <strong>{formatCurrency(quotation.total)}</strong> &middot; Paid so far:{' '}
               <strong>{formatCurrency(order.paymentInfo.paid)}</strong> &middot; Pending:{' '}
               <strong>{formatCurrency(order.paymentInfo.pending)}</strong>
+            </p>
+            <p className="text-xs bg-blue-50 text-blue-700 rounded-lg px-3 py-2">
+              Quotation Amount stays {formatCurrency(quotation.quotedTotal)} — this changes only the Final Amount the customer pays.
             </p>
             <p className="text-xs text-gray-400">
               Fixes a mistaken figure on an already-confirmed order — unlike Settle with Discount, this
               can move the total up as well as down.
             </p>
             <div>
-              <Label>New Total Amount</Label>
+              <Label>New Final Amount</Label>
               <Input
                 type="number"
                 step="0.01"

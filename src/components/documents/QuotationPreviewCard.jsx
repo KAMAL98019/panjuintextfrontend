@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { groupByGstRatePreview } from '../../utils/gstPreview';
 import { formatDate } from '../../utils/format';
 
@@ -6,7 +6,6 @@ const A4_W = 595.28; // pt — same coordinate system as the PDF renderer
 const A4_H = 841.89;
 const ZONE_TOP = 116;
 const ZONE_BOTTOM = 92;
-const ZONE_H = A4_H - ZONE_TOP - ZONE_BOTTOM;
 
 const money = (n, decimals = true) => {
   const num = Number(n || 0);
@@ -15,23 +14,25 @@ const money = (n, decimals = true) => {
 };
 
 const cellBorder = 'border border-gray-400 px-1 py-[3px]';
-
-// Rough per-row height estimate so items can be split across sheets like the PDF does.
-const rowHeight = (item) => {
-  const lines = Math.max(1, Math.ceil((item.description || '(untitled item)').length / 27));
-  return lines * 11 + 8;
-};
+const TABLE_W = 340;
+const BODY_W = 415;
 
 /**
  * Live preview of the quotation on the real printed letterhead — mirrors quotationPdf.js,
- * including pagination: when items overflow the sheet's content zone, they continue on a
- * second letterhead sheet exactly like the generated PDF. Each sheet is laid out at true
- * A4 size and CSS-scaled to the container width.
+ * including its single-page rule: however many items there are, the table + note shrink just
+ * enough to fit above the footer on one sheet. The sheet is laid out at true A4 size and
+ * CSS-scaled to the container width.
  */
 export default function QuotationPreviewCard({ company, customer, quotationNumber, date, quotationType, items, subtotal, discountAmount, total, remarks, terms, validityDays }) {
   const isGst = quotationType === 'GST';
   const containerRef = useRef(null);
+  const zoneRef = useRef(null);
+  const headRef = useRef(null);
+  const bodyRef = useRef(null);
+  const footRef = useRef(null);
   const [scale, setScale] = useState(0);
+  const [fit, setFit] = useState(1);
+  const [bodyHeight, setBodyHeight] = useState(0);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -49,38 +50,24 @@ export default function QuotationPreviewCard({ company, customer, quotationNumbe
   const grossTotal = items.reduce((sum, item) => sum + taxableAmount(item), 0);
   const gstGroups = isGst ? groupByGstRatePreview(items) : [];
 
-  // ----- Paginate: header block on sheet 1, items flow across sheets, totals/note/footer at the end
-  const headerH = 207;
-  const totalsRowCount = 2 + gstGroups.length + (discountAmount > 0 ? 1 : 0);
-  const tailH = totalsRowCount * 17 + 40 + 95; // totals rows + note + footer block
-
-  const sheets = [];
-  let current = { items: [], first: sheets.length === 0 };
-  let used = headerH;
-  items.forEach((item) => {
-    const h = rowHeight(item);
-    if (used + h > ZONE_H && current.items.length > 0) {
-      sheets.push(current);
-      current = { items: [], first: false };
-      used = 10;
-    }
-    current.items.push(item);
-    used += h;
+  // Shrink the items table + note to fit the space left under the header (offsetHeight ignores
+  // CSS transforms, so the body's natural height is measured even while it's scaled down).
+  // Runs after every render on purpose (any item/text change can change the height); the
+  // tolerance checks stop it once the values settle, so it can't loop.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useLayoutEffect(() => {
+    if (!zoneRef.current || !headRef.current || !bodyRef.current || !footRef.current) return;
+    const room = zoneRef.current.clientHeight - headRef.current.offsetHeight - footRef.current.offsetHeight;
+    const natural = bodyRef.current.offsetHeight;
+    const next = natural > room ? Math.max(0.1, room / natural) : 1;
+    if (Math.abs(next - fit) > 0.005) setFit(next);
+    if (Math.abs(natural - bodyHeight) > 0.5) setBodyHeight(natural);
   });
-  current.tail = true;
-  if (used + tailH > ZONE_H && current.items.length > 0) {
-    sheets.push({ ...current, tail: false });
-    current = { items: [], first: false, tail: true };
-  }
-  sheets.push(current);
 
-  let sr = 0; // running index so row keys stay stable across sheets
-
-  const renderItemsRows = (sheetItems) =>
-    sheetItems.map((item) => {
-      sr += 1;
+  const renderItemsRows = () =>
+    items.map((item, idx) => {
       return (
-        <tr key={sr}>
+        <tr key={idx}>
           <td className={cellBorder} style={{ width: '36%' }}>{item.description || '(untitled item)'}</td>
           <td className={`${cellBorder} text-right`} style={{ width: '11%' }}>{item.quantity || 0}</td>
           <td className={`${cellBorder} text-center`} style={{ width: '11%' }}>{item.unit || ''}</td>
@@ -93,8 +80,8 @@ export default function QuotationPreviewCard({ company, customer, quotationNumbe
 
   return (
     <div ref={containerRef} className="w-full space-y-4">
-      {scale > 0 && sheets.map((sheet, idx) => (
-        <div key={idx} className="relative w-full overflow-hidden shadow-lg" style={{ aspectRatio: `${A4_W} / ${A4_H}` }}>
+      {scale > 0 && (
+        <div className="relative w-full overflow-hidden shadow-lg" style={{ aspectRatio: `${A4_W} / ${A4_H}` }}>
           <div
             className="absolute top-0 left-0 bg-white text-black"
             style={{
@@ -103,9 +90,8 @@ export default function QuotationPreviewCard({ company, customer, quotationNumbe
               backgroundImage: "url('/images/letterhead-a4.png')", backgroundSize: '100% 100%',
             }}
           >
-            <div className="absolute overflow-hidden" style={{ left: 45, top: ZONE_TOP, width: 415, bottom: ZONE_BOTTOM }}>
-              {sheet.first && (
-                <>
+            <div ref={zoneRef} className="absolute overflow-hidden" style={{ left: 45, top: ZONE_TOP, width: BODY_W, bottom: ZONE_BOTTOM }}>
+              <div ref={headRef}>
                   <div className="flex justify-between items-start mb-3" style={{ marginTop: 32 }}>
                     <div className="text-[9px] leading-snug flex gap-2">
                       <span className="font-bold">TO:</span>
@@ -130,13 +116,14 @@ export default function QuotationPreviewCard({ company, customer, quotationNumbe
                   </p>
 
                   <p className="text-[9.5px] font-bold underline mb-1">Quotation Area :</p>
-                </>
-              )}
+              </div>
 
-              <table className="border-collapse text-[8.5px] mb-2 font-bold" style={{ tableLayout: 'fixed', width: 340 }}>
+              <div style={{ height: bodyHeight ? bodyHeight * fit : undefined }}>
+              <div ref={bodyRef} style={{ width: BODY_W / fit, transform: `scale(${fit})`, transformOrigin: 'top left' }}>
+              <table className="border-collapse text-[8.5px] mb-2 font-bold" style={{ tableLayout: 'fixed', width: TABLE_W }}>
                 <tbody>
-                  {renderItemsRows(sheet.items)}
-                  {sheet.tail && (
+                  {renderItemsRows()}
+                  {(
                     <>
                       <tr>
                         <td colSpan={4} className={`${cellBorder} text-center font-bold text-navy-900`}>Gross Total</td>
@@ -167,34 +154,33 @@ export default function QuotationPreviewCard({ company, customer, quotationNumbe
                 </tbody>
               </table>
 
-              {sheet.tail && (
-                <>
-                  <p className="text-[8.5px] mb-3">
-                    <span className="font-bold">Note : </span>
-                    <span className="text-gray-700">
-                      {terms || `All prices quoted are valid for ${validityDays || 7} days from the date of stated on the quotation. 70% advance for the order confirmation.`}
-                    </span>
-                  </p>
+              <p className="text-[8.5px] mb-3" style={{ width: BODY_W }}>
+                <span className="font-bold">Note : </span>
+                <span className="text-gray-700">
+                  {terms || `All prices quoted are valid for ${validityDays || 7} days from the date of stated on the quotation. 70% advance for the order confirmation.`}
+                </span>
+              </p>
+              </div>
+              </div>
 
-                  <div className="flex justify-between items-end mt-4 text-[9px]">
-                    <div className="leading-relaxed font-bold">
-                      {company?.name?.toUpperCase() || 'PANJU INTEXT'}
-                      <br />A/c. No : 510101000385645
-                      <br />UNION BANK of INDIA
-                      <br />IFSC : UBIN 0817767
-                      <br />FIVE ROADS - SALEM BRANCH
-                    </div>
-                    <div className="text-center">
-                      <span className="font-bold">Thanks &amp; Regards</span>
-                      <br /><span className="text-gray-700">{company?.name || 'Panju Intext'}</span>
-                    </div>
-                  </div>
-                </>
-              )}
+              {/* Footer stays full size, like the PDF — only the table + note shrink */}
+              <div ref={footRef} className="flex justify-between items-end pt-4 text-[9px]">
+                <div className="leading-relaxed font-bold">
+                  {company?.name?.toUpperCase() || 'PANJU INTEXT'}
+                  <br />A/c. No : 510101000385645
+                  <br />UNION BANK of INDIA
+                  <br />IFSC : UBIN 0817767
+                  <br />FIVE ROADS - SALEM BRANCH
+                </div>
+                <div className="text-center">
+                  <span className="font-bold">Thanks &amp; Regards</span>
+                  <br /><span className="text-gray-700">{company?.name || 'Panju Intext'}</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
-      ))}
+      )}
     </div>
   );
 }
