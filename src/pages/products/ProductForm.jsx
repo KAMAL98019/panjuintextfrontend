@@ -65,7 +65,7 @@ export default function ProductForm({ initialValues, onSuccess }) {
         </div>
         <div>
           <Label>Default Rate</Label>
-          <Input type="number" step="0.01" {...register('defaultRate', { required: 'Rate is required', min: 0 })} />
+          <Input type="number" step="0.01" {...register('defaultRate', { min: 0 })} />
           <ErrorText>{errors.defaultRate}</ErrorText>
         </div>
       </div>
