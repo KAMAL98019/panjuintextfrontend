@@ -159,13 +159,6 @@ export default function QuotationFormPage() {
       toast.error('Please select a customer');
       return;
     }
-    if (customerMode === 'new') {
-      const c = values.customer;
-      if (!c.name || !c.mobile || !c.address) {
-        toast.error('Please fill in the new customer\'s name, mobile and address');
-        return;
-      }
-    }
 
     const payload = {
       ...(customerMode === 'existing' ? { customerId: Number(values.customerId) } : { customer: values.customer }),
@@ -270,12 +263,12 @@ export default function QuotationFormPage() {
             ) : (
               <div className="space-y-4">
                 <div>
-                  <Label>Full Name</Label>
+                  <Label>Full Name (Optional)</Label>
                   <Input {...register('customer.name')} placeholder="Enter client name" />
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <Label>Phone Number</Label>
+                    <Label>Phone Number (Optional)</Label>
                     <Input {...register('customer.mobile')} placeholder="+91 00000 00000" />
                   </div>
                   <div>
@@ -284,7 +277,7 @@ export default function QuotationFormPage() {
                   </div>
                 </div>
                 <div>
-                  <Label>Project Address</Label>
+                  <Label>Project Address (Optional)</Label>
                   <Textarea rows={2} {...register('customer.address')} placeholder="Suite, Street, Landmark..." />
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -301,7 +294,7 @@ export default function QuotationFormPage() {
                   </div>
                 </div>
                 <p className="text-xs text-gray-400">
-                  If this mobile number already matches an existing customer, that customer's record will be reused instead of creating a duplicate.
+                  All fields are optional. If a phone number is entered and it matches an existing customer, that customer's record is reused instead of creating a duplicate.
                 </p>
               </div>
             )}
