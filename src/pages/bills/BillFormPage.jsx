@@ -13,6 +13,7 @@ import * as customersApi from '../../api/customers';
 import * as ordersApi from '../../api/orders';
 import * as billsApi from '../../api/bills';
 import { getSettings } from '../../api/settings';
+import { formQty, formUnit, savedQtyUnit } from '../../utils/lumpSum';
 
 /**
  * Full-page Memo / GST bill form — works three ways:
@@ -41,7 +42,7 @@ export default function BillFormPage() {
   const [bill, setBill] = useState(null);
   const [shareTarget, setShareTarget] = useState(null);
 
-  const [items, setItems] = useState([{ description: '', shadeCode: '', quantity: 1, unit: 'sqft', unitPrice: '' }]);
+  const [items, setItems] = useState([{ description: '', shadeCode: '', quantity: '', unit: 'sqft', unitPrice: '' }]);
   const [fields, setFields] = useState({
     recipientName: '', recipientCell: '', deliveryAddress: '',
     materialsDeliveryDate: '', jobExecutionPeriod: '', remarks: '', advancePayment: '',
@@ -68,8 +69,8 @@ export default function BillFormPage() {
         description: item.description,
         shadeCode: item.hsnCode || '',
         hsnCode: item.hsnCode || '',
-        quantity: item.quantity,
-        unit: item.unit,
+        quantity: formQty(item),
+        unit: formUnit(item),
         unitPrice: item.unitPrice,
         discountPercent: item.discountPercent || 0,
         gstPercent: item.gstPercent || 0,
@@ -93,8 +94,8 @@ export default function BillFormPage() {
         description: item.description,
         shadeCode: item.shadeCode || item.hsnCode || '',
         hsnCode: item.hsnCode || '',
-        quantity: item.quantity,
-        unit: item.unit,
+        quantity: formQty(item),
+        unit: formUnit(item),
         unitPrice: item.unitPrice,
         discountPercent: item.discountPercent || 0,
         gstPercent: item.gstPercent || 0,
@@ -120,8 +121,8 @@ export default function BillFormPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (items.length === 0 || items.some((i) => !i.description || !i.quantity || !i.unitPrice)) {
-      toast.error('Every item needs a description, quantity and rate');
+    if (items.length === 0 || items.some((i) => !i.description || !i.unitPrice)) {
+      toast.error('Every item needs a description and a rate');
       return;
     }
     if (!order && customerMode === 'existing' && !customerId) {
@@ -135,7 +136,7 @@ export default function BillFormPage() {
 
     const submittedItems = items.map((item) => ({
       ...item,
-      quantity: Number(item.quantity),
+      ...savedQtyUnit(item), // blank Qty = lump-sum line (e.g. Transport)
       unitPrice: Number(item.unitPrice),
       discountPercent: item.discountPercent !== undefined ? Number(item.discountPercent) : undefined,
       gstPercent: item.gstPercent !== undefined ? Number(item.gstPercent) : undefined,

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { formatDate } from '../../utils/format';
+import { effectiveQty, isLumpSum } from '../../utils/lumpSum';
 
 const A4_W = 595.28;
 const A4_H = 841.89;
@@ -38,7 +39,7 @@ export default function MemoPreviewCard({ billNumber, date, name, cell, address,
     return () => ro.disconnect();
   }, []);
 
-  const lineAmount = (item) => (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0) * (1 + (Number(item.gstPercent) || 0) / 100);
+  const lineAmount = (item) => effectiveQty(item) * (Number(item.unitPrice) || 0) * (1 + (Number(item.gstPercent) || 0) / 100);
   const computedTotal = total ?? items.reduce((s, i) => s + lineAmount(i), 0);
   const paid = Number(advance) || 0;
   const pending = balance ?? Math.max(computedTotal - paid, 0);
@@ -77,7 +78,7 @@ export default function MemoPreviewCard({ billNumber, date, name, cell, address,
                 <At x={68} y={y} w={60} align="center" size={9}>{idx + 1}</At>
                 <At x={132} y={y} w={396} size={9}>{item.description}</At>
                 <At x={533} y={y} w={149} align="center" size={9}>{item.shadeCode || ''}</At>
-                <At x={682} y={y} w={74} align="center" size={9}>{item.quantity}</At>
+                <At x={682} y={y} w={74} align="center" size={9}>{isLumpSum(item) ? '' : item.quantity}</At>
                 <At x={760} y={y} w={94} align="right" size={9}>{money(item.unitPrice)}</At>
                 <At x={858} y={y} w={158} align="right" size={9}>{money(lineAmount(item))}</At>
               </React.Fragment>

@@ -3,16 +3,17 @@ import { Plus, Trash2 } from 'lucide-react';
 import Button from './Button';
 import { Label } from './form/Field';
 import { formatCurrency } from '../utils/format';
+import { effectiveQty, isBlankQty } from '../utils/lumpSum';
 
 export const emptyItemFor = (mode) =>
   mode === 'memo'
-    ? { description: '', shadeCode: '', quantity: 1, unit: 'sqft', unitPrice: '', gstPercent: 0 }
+    ? { description: '', shadeCode: '', quantity: '', unit: 'sqft', unitPrice: '', gstPercent: 0 }
     : mode === 'gst'
-    ? { description: '', hsnCode: '', quantity: 1, unit: 'sqft', unitPrice: '', discountPercent: 0, gstPercent: 18 }
-    : { description: '', hsnCode: '', quantity: 1, unit: 'sqft', unitPrice: '', discountPercent: 0 };
+    ? { description: '', hsnCode: '', quantity: '', unit: 'sqft', unitPrice: '', discountPercent: 0, gstPercent: 18 }
+    : { description: '', hsnCode: '', quantity: '', unit: 'sqft', unitPrice: '', discountPercent: 0 };
 
 export function lineAmountFor(mode, item) {
-  const base = (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0);
+  const base = effectiveQty(item) * (Number(item.unitPrice) || 0);
   const taxable = base * (1 - (Number(item.discountPercent) || 0) / 100);
   if (mode === 'gst') return taxable * (1 + (Number(item.gstPercent) || 0) / 100);
   // Memo: flat by default, but GST can optionally be added per line
@@ -71,7 +72,7 @@ export default function ItemsEditor({ items, onChange, mode }) {
                   onChange={(e) => updateItem(index, codeField, e.target.value)} />
               </MiniField>
               <MiniField label="Unit" className="col-span-4 sm:col-span-2">
-                <input className={inputCls} placeholder="sqft" value={item.unit}
+                <input className={`${inputCls} disabled:bg-gray-50`} placeholder={isBlankQty(item.quantity) ? '' : 'sqft'} disabled={isBlankQty(item.quantity)} value={isBlankQty(item.quantity) ? '' : item.unit}
                   onChange={(e) => updateItem(index, 'unit', e.target.value)} />
               </MiniField>
               <button type="button" onClick={() => removeItem(index)} title="Remove item"
@@ -81,7 +82,8 @@ export default function ItemsEditor({ items, onChange, mode }) {
             </div>
             <div className="grid grid-cols-12 gap-1.5 items-end">
               <MiniField label="Qty" className="col-span-4 sm:col-span-2">
-                <input type="number" step="0.01" className={inputCls} value={item.quantity}
+                <input type="number" step="0.01" className={inputCls} value={item.quantity} placeholder="—"
+                  title="Leave blank for a lump-sum line like Transport — the Rate is the whole amount"
                   onChange={(e) => updateItem(index, 'quantity', e.target.value)} />
               </MiniField>
               <MiniField label="Rate ₹" className="col-span-4 sm:col-span-2">

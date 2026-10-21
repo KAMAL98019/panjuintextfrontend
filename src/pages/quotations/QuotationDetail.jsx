@@ -18,6 +18,7 @@ import * as ordersApi from '../../api/orders';
 import { getSettings } from '../../api/settings';
 import { formatCurrency, formatDate, formatDateTime } from '../../utils/format';
 import { groupByGstRatePreview } from '../../utils/gstPreview';
+import { effectiveQty, formQty, formUnit, isLumpSum, savedQtyUnit } from '../../utils/lumpSum';
 
 const ORDER_TIMELINE = [
   'QuotationCreated', 'Sent', 'Negotiation', 'Confirmed', 'AdvancePaid',
@@ -103,8 +104,8 @@ export default function QuotationDetail() {
       quotation.items.map((item) => ({
         description: item.description,
         hsnCode: item.hsnCode || '',
-        quantity: item.quantity,
-        unit: item.unit,
+        quantity: formQty(item),
+        unit: formUnit(item),
         unitPrice: item.unitPrice,
         discountPercent: item.discountPercent || 0,
         gstPercent: item.gstPercent || 0,
@@ -116,14 +117,14 @@ export default function QuotationDetail() {
 
   const handleRevise = async (e) => {
     e.preventDefault();
-    if (reviseItems.length === 0 || reviseItems.some((i) => !i.description || !i.quantity || !i.unitPrice)) {
-      toast.error('Every item needs a description, quantity and rate');
+    if (reviseItems.length === 0 || reviseItems.some((i) => !i.description || !i.unitPrice)) {
+      toast.error('Every item needs a description and a rate');
       return;
     }
     try {
       const items = reviseItems.map((item) => ({
         ...item,
-        quantity: Number(item.quantity),
+        ...savedQtyUnit(item),
         unitPrice: Number(item.unitPrice),
         discountPercent: Number(item.discountPercent) || 0,
         gstPercent: Number(item.gstPercent) || 0,
@@ -310,7 +311,7 @@ export default function QuotationDetail() {
                 {quotation.items.map((item) => (
                   <tr key={item.id} className="border-b border-gray-50 last:border-0">
                     <td className="py-2">{item.description}{item.hsnCode && <span className="text-gray-400 text-xs ml-1">({item.hsnCode})</span>}</td>
-                    <td className="py-2">{item.quantity} {item.unit}</td>
+                    <td className="py-2">{isLumpSum(item) ? <span className="text-gray-300">—</span> : `${item.quantity} ${item.unit}`}</td>
                     <td className="py-2">{formatCurrency(item.unitPrice)}</td>
                     {quotation.quotationType === 'GST' && <td className="py-2">{item.gstPercent}%</td>}
                     {/* Pre-tax row amount, same as the PDF's Quotation Area — GST shows only as the grouped lines below */}
@@ -534,8 +535,8 @@ export default function QuotationDetail() {
               date={quotation.createdAt}
               quotationType={quotation.quotationType}
               items={reviseItems}
-              subtotal={reviseItems.reduce((sum, item) => sum + (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0), 0)}
-              discountAmount={reviseItems.reduce((sum, item) => sum + (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0) * ((Number(item.discountPercent) || 0) / 100), 0)}
+              subtotal={reviseItems.reduce((sum, item) => sum + effectiveQty(item) * (Number(item.unitPrice) || 0), 0)}
+              discountAmount={reviseItems.reduce((sum, item) => sum + effectiveQty(item) * (Number(item.unitPrice) || 0) * ((Number(item.discountPercent) || 0) / 100), 0)}
               total={reviseItems.reduce((sum, item) => sum + lineAmountFor(reviseMode, item), 0)}
               remarks={quotation.remarks}
               terms={quotation.terms}

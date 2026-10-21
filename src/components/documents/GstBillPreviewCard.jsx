@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { calculateTotalsPreview } from '../../utils/gstPreview';
 import { formatDate, amountToIndianWords } from '../../utils/format';
+import { effectiveQty, isLumpSum } from '../../utils/lumpSum';
 
 const A4_W = 595.28;
 const A4_H = 841.89;
@@ -53,7 +54,7 @@ export default function GstBillPreviewCard({ company, customer, billNumber, date
   const fullRate = rates.length === 1 ? `${rates[0]}` : '';
 
   const taxable = (item) => {
-    const base = (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0);
+    const base = effectiveQty(item) * (Number(item.unitPrice) || 0);
     return base * (1 - (Number(item.discountPercent) || 0) / 100);
   };
 
@@ -99,7 +100,7 @@ export default function GstBillPreviewCard({ company, customer, billNumber, date
                 <At x={5} y={y} w={45} align="center" size={9}>{idx + 1}</At>
                 <At x={50} y={y} w={100} align="center" size={9}>{item.hsnCode || ''}</At>
                 <At x={153} y={y} w={505} size={9}>{item.description}</At>
-                <At x={661} y={y} w={98} align="center" size={9}>{item.quantity}</At>
+                <At x={661} y={y} w={98} align="center" size={9}>{isLumpSum(item) ? '' : item.quantity}</At>
                 <At x={759} y={y} w={131} align="right" size={9}>{money(item.unitPrice)}</At>
                 <At x={896} y={y} w={131} align="right" size={9}>{rs}</At>
                 <At x={1033} y={y} w={46} align="center" size={9}>{ps}</At>

@@ -1,3 +1,5 @@
+import { effectiveQty } from './lumpSum';
+
 const round2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
 
 /** Client-side mirror of the backend gstCalculator, used only for the live preview panel. */
@@ -10,7 +12,7 @@ export function calculateTotalsPreview({ items, quotationType, isInterState }) {
   let igst = 0;
 
   items.forEach((item) => {
-    const qty = Number(item.quantity) || 0;
+    const qty = effectiveQty(item);
     const rate = Number(item.unitPrice) || 0;
     const discPct = Number(item.discountPercent) || 0;
     const gstPct = Number(item.gstPercent) || 0;
@@ -50,7 +52,7 @@ export function groupByGstRatePreview(items) {
   items.forEach((item) => {
     const rate = Number(item.gstPercent) || 0;
     if (rate <= 0) return;
-    const qty = Number(item.quantity) || 0;
+    const qty = effectiveQty(item);
     const unitPrice = Number(item.unitPrice) || 0;
     const discPct = Number(item.discountPercent) || 0;
     const taxableValue = qty * unitPrice * (1 - discPct / 100);

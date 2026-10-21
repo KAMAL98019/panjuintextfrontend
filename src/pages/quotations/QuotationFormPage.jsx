@@ -13,8 +13,9 @@ import * as quotationsApi from '../../api/quotations';
 import { getSettings } from '../../api/settings';
 import { calculateTotalsPreview, groupByGstRatePreview } from '../../utils/gstPreview';
 import { formatCurrency } from '../../utils/format';
+import { effectiveQty, formQty, formUnit, isBlankQty, savedQtyUnit } from '../../utils/lumpSum';
 
-const emptyItem = { description: '', hsnCode: '', quantity: 1, unit: 'sqft', unitPrice: '', discountPercent: 0, gstPercent: 18, productId: '' };
+const emptyItem = { description: '', hsnCode: '', quantity: '', unit: 'sqft', unitPrice: '', discountPercent: 0, gstPercent: 18, productId: '' };
 
 // Unsaved typing on this form is kept in localStorage so navigating away (back button,
 // accidental link click, refresh) never loses an in-progress quotation.
@@ -79,8 +80,8 @@ export default function QuotationFormPage() {
           productId: item.productId ? String(item.productId) : '',
           description: item.description,
           hsnCode: item.hsnCode || '',
-          quantity: item.quantity,
-          unit: item.unit,
+          quantity: formQty(item),
+          unit: formUnit(item),
           unitPrice: item.unitPrice,
           discountPercent: item.discountPercent || 0,
           gstPercent: item.gstPercent || 0,
@@ -151,7 +152,7 @@ export default function QuotationFormPage() {
     : '20px minmax(160px, 1fr) 64px 60px 80px 52px 100px 28px';
 
   const onInvalid = () => {
-    toast.error('Every item needs a description, quantity, unit and rate — check the items marked in red');
+    toast.error('Every item needs a description and a rate — check the items marked in red');
   };
 
   const onSubmit = async (values) => {
@@ -170,8 +171,7 @@ export default function QuotationFormPage() {
         productId: item.productId ? Number(item.productId) : null,
         description: item.description,
         hsnCode: item.hsnCode,
-        quantity: Number(item.quantity),
-        unit: item.unit,
+        ...savedQtyUnit(item), // blank Qty = lump-sum line (e.g. Transport)
         unitPrice: Number(item.unitPrice),
         discountPercent: Number(item.discountPercent) || 0,
         gstPercent: values.quotationType === 'GST' ? Number(item.gstPercent) || 0 : 0,
@@ -334,9 +334,9 @@ export default function QuotationFormPage() {
                 <div className="grid gap-2 px-1 pb-2 text-[11px] font-semibold uppercase text-gray-400 border-b border-gray-100" style={{ gridTemplateColumns: itemGridColumns }}>
                   <span>#</span>
                   <span>Item / Description *</span>
-                  <span>Qty *</span>
+                  <span title="Leave blank for lump-sum lines like Transport">Qty</span>
                   <span>Unit</span>
-                  <span>Rate ₹ *</span>
+                  <span>Rate / Amount ₹ *</span>
                   <span>Disc %</span>
                   {watchType === 'GST' && <span>GST %</span>}
                   <span className="text-right">Amount</span>
@@ -345,7 +345,7 @@ export default function QuotationFormPage() {
 
                 {fields.map((field, index) => {
                   const line = watchItems?.[index] || {};
-                  const lineAmount = (Number(line.quantity) || 0) * (Number(line.unitPrice) || 0) * (1 - (Number(line.discountPercent) || 0) / 100);
+                  const lineAmount = effectiveQty(line) * (Number(line.unitPrice) || 0) * (1 - (Number(line.discountPercent) || 0) / 100);
                   const itemErrors = errors.items?.[index];
                   const descField = register(`items.${index}.description`, { required: true });
                   return (
@@ -363,8 +363,8 @@ export default function QuotationFormPage() {
                         title="Start typing to pick from Products, or type any custom description"
                         className={cellInput(itemErrors?.description)}
                       />
-                      <input type="number" step="0.01" {...register(`items.${index}.quantity`, { required: true, min: 0.01 })} className={cellInput(itemErrors?.quantity)} />
-                      <input {...register(`items.${index}.unit`, { required: true })} placeholder="sqft" className={cellInput(itemErrors?.unit)} />
+                      <input type="number" step="0.01" {...register(`items.${index}.quantity`, { min: 0.01 })} placeholder="—" title="Leave blank for a lump-sum line like Transport — the Rate is the whole amount" className={cellInput(itemErrors?.quantity)} />
+                      <input {...register(`items.${index}.unit`)} placeholder={isBlankQty(line.quantity) ? '' : 'sqft'} disabled={isBlankQty(line.quantity)} title={isBlankQty(line.quantity) ? 'No unit needed for a lump-sum line' : undefined} className={`${cellInput()} disabled:bg-gray-50 disabled:text-gray-300`} />
                       <input type="number" step="0.01" {...register(`items.${index}.unitPrice`, { required: true, min: 0 })} placeholder="0.00" className={cellInput(itemErrors?.unitPrice)} />
                       <input type="number" step="0.01" {...register(`items.${index}.discountPercent`)} className={cellInput()} />
                       {watchType === 'GST' && (
