@@ -1,6 +1,5 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { groupByGstRatePreview } from '../../utils/gstPreview';
-import { formatDate } from '../../utils/format';
 import { effectiveQty, isLumpSum } from '../../utils/lumpSum';
 
 const A4_W = 595.28; // pt — same coordinate system as the PDF renderer
@@ -13,6 +12,19 @@ const money = (n, decimals = true) => {
   const num = Number(n || 0);
   const sign = num < 0 ? '- ' : '';
   return `${sign}Rs. ${Math.abs(num).toLocaleString('en-IN', decimals ? { minimumFractionDigits: 2, maximumFractionDigits: 2 } : { maximumFractionDigits: 2 })}`;
+};
+
+/** Pad-style date: 21.10.2026 */
+const dotDate = (date) => {
+  const d = new Date(date || Date.now());
+  return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`;
+};
+
+/** "Quotation for Wallpaper & Blinds reg." with the work type in bold, like the pad. */
+const subjectLine = (text) => {
+  const m = text.match(/^(Quotation for\s+)(.+?)(\s+reg\.?)?$/i);
+  if (!m) return text;
+  return <>{m[1]}<span className="font-bold">{m[2]}</span>{m[3] || ''}</>;
 };
 
 const cellBorder = (compact) => `border border-gray-400 px-1 ${compact ? 'py-0 leading-tight' : 'py-[3px]'}`;
@@ -62,17 +74,18 @@ export default function QuotationPreviewCard({ company, customer, quotationNumbe
     const headH = h('[data-head]');
     const room1 = ZONE_H - headH;
 
-    const fits = (mode) => rowHeights(mode).reduce((s, x) => s + x, 0) + h(`[data-tail="${mode}"]`) <= room1;
+    const fits = (mode) => h(`[data-hdr="${mode}"]`) + rowHeights(mode).reduce((s, x) => s + x, 0) + h(`[data-tail="${mode}"]`) <= room1;
     let next;
     if (fits('normal')) next = { compact: false, breaks: [] };
     else if (fits('compact')) next = { compact: true, breaks: [] };
     else {
       // Normal spacing across sheets: fill each sheet, then carry the last row over with the tail
       const breaks = [];
-      let used = 0;
+      const hdrH = h('[data-hdr="normal"]');
+      let used = hdrH;
       let room = room1;
       rowHeights('normal').forEach((rh, idx) => {
-        if (used + rh > room && idx > 0) { breaks.push(idx); used = 0; room = ZONE_H; }
+        if (used + rh > room && idx > 0) { breaks.push(idx); used = hdrH; room = ZONE_H; }
         used += rh;
       });
       const tailH = h('[data-tail="normal"]');
@@ -84,19 +97,18 @@ export default function QuotationPreviewCard({ company, customer, quotationNumbe
 
   const head = (
     <>
-      <div className="flex justify-between items-start mb-3" style={{ marginTop: 32 }}>
-        <div className="text-[9px] leading-snug flex gap-2">
-          <span className="font-bold">TO:</span>
-          <span>
-            <span className="font-bold">{customer?.name || 'Customer name'}</span>
-            {customer?.address && <><br />{customer.address}</>}
-            {customer?.city && <><br />{customer.city}{customer.pincode ? ` - ${customer.pincode}` : ''}</>}
-            {customer?.mobile && <><br />ph.no: {customer.mobile}</>}
-          </span>
-        </div>
+      {/* Like the pad: "TO:" on its own line, the customer's name/address indented below it */}
+      <div className="text-[9px] leading-snug mb-4" style={{ marginTop: 32 }}>
+        <p className="font-bold">TO:</p>
+        <p className="font-bold mt-[5px]" style={{ marginLeft: 32 }}>{customer?.name || 'Customer name'}</p>
+        <p style={{ marginLeft: 32 }}>
+          {customer?.address}
+          {customer?.city && <><br />{customer.city}{customer.pincode ? ` - ${customer.pincode}` : ''}</>}
+          {customer?.mobile && <><br />ph.no: {customer.mobile}</>}
+        </p>
       </div>
 
-      <p className="text-[9px] mb-2"><span className="font-bold">SUB:</span>  {remarks || 'Quotation for interior furnishing works'}</p>
+      <p className="text-[9px] mb-2"><span className="font-bold">SUB:</span>  {subjectLine(remarks || 'Quotation for interior furnishing works')}</p>
 
       <p className="text-[9px] font-bold">DEAR SIR</p>
       <p className="text-[8.5px] text-gray-700 ml-4 mb-2">
@@ -106,6 +118,21 @@ export default function QuotationPreviewCard({ company, customer, quotationNumbe
       <p className="text-[9.5px] font-bold underline mb-1">Quotation Area :</p>
     </>
   );
+
+  // Column names heading the table (repeated on a continuation sheet), like the PDF
+  const headerRow = (compact, mode) => {
+    const c = `${cellBorder(compact)} bg-[#e8ecf5] text-navy-900`;
+    return (
+      <tr data-hdr={mode}>
+        <td className={c} style={{ width: '36%' }}>Description</td>
+        <td className={`${c} text-center`} style={{ width: '11%' }}>Qty</td>
+        <td className={`${c} text-center`} style={{ width: '11%' }}>Unit</td>
+        <td className={`${c} text-center`} style={{ width: '16%' }}>Rate</td>
+        <td className={c} style={{ width: '4%' }} />
+        <td className={`${c} text-right`} style={{ width: '22%' }}>Amount</td>
+      </tr>
+    );
+  };
 
   const itemRow = (item, idx, compact, mode) => {
     const c = cellBorder(compact);
@@ -205,6 +232,7 @@ export default function QuotationPreviewCard({ company, customer, quotationNumbe
                 {isFirst && head}
                 <table className={tableCls} style={tableStyle}>
                   <tbody>
+                    {headerRow(layout.compact)}
                     {sheetItems.map(([item, idx]) => itemRow(item, idx, layout.compact))}
                     {isLast && totalsRows(layout.compact)}
                   </tbody>
@@ -213,9 +241,9 @@ export default function QuotationPreviewCard({ company, customer, quotationNumbe
               </div>
               {/* QT number + date at the top-right, just inside the header curve — same spot as the PDF */}
               {isFirst && (
-                <div className="absolute text-[9px] leading-snug text-right" style={{ left: QT_RIGHT - QT_WIDTH, width: QT_WIDTH, top: ZONE_TOP + 32 }}>
+                <div className="absolute text-[9px] leading-snug text-center" style={{ left: QT_RIGHT - QT_WIDTH, width: QT_WIDTH, top: ZONE_TOP + 32 }}>
                   <span className="font-bold">{quotationNumber || 'Draft'}</span>
-                  <br />{formatDate(date || new Date())}
+                  <br />{dotDate(date)}
                 </div>
               )}
             </div>
@@ -229,7 +257,7 @@ export default function QuotationPreviewCard({ company, customer, quotationNumbe
         <div data-head>{head}</div>
         {['normal', 'compact'].map((mode) => (
           <div key={mode}>
-            <table className={tableCls} style={tableStyle}><tbody>{items.map((item, idx) => itemRow(item, idx, mode === 'compact', mode))}</tbody></table>
+            <table className={tableCls} style={tableStyle}><tbody>{headerRow(mode === 'compact', mode)}{items.map((item, idx) => itemRow(item, idx, mode === 'compact', mode))}</tbody></table>
             <div data-tail={mode}>
               <table className={tableCls} style={tableStyle}><tbody>{totalsRows(mode === 'compact')}</tbody></table>
               {noteAndFooter}
