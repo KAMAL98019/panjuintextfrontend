@@ -34,18 +34,18 @@ const QT_RIGHT = 488; // right edge of the QT number/date block (pt), as in quot
 const QT_WIDTH = 120;
 
 /**
- * Live preview of the quotation on the real printed letterhead — mirrors quotationPdf.js:
- * text always stays the normal size; when the items don't fit on one sheet the rows tighten up
- * first, and if they still don't fit they continue on a second sheet (the last row always travels
- * with the totals/note/footer, so a sheet never holds only the footer). Rows are measured in a
- * hidden copy, then laid out at true A4 size and CSS-scaled to the container width.
+ * Live preview of the quotation on the real printed letterhead — mirrors quotationPdf.js, which
+ * always produces ONE page: normal layout when it fits; otherwise Excel-like tight rows and
+ * tighter gaps in the top section (text keeps its size); only when a sheet is physically full do
+ * the table + note shrink, just enough to fit. Heights are measured in a hidden copy, then the
+ * sheet is laid out at true A4 size and CSS-scaled to the container width.
  */
 export default function QuotationPreviewCard({ company, customer, quotationNumber, date, quotationType, items, subtotal, discountAmount, total, remarks, terms, validityDays }) {
   const isGst = quotationType === 'GST';
   const containerRef = useRef(null);
   const measureRef = useRef(null);
   const [scale, setScale] = useState(0);
-  const [layout, setLayout] = useState({ compact: false, breaks: [] });
+  const [layout, setLayout] = useState({ compactHead: false, compactRows: false, fit: 1, bodyH: 0 });
 
   useEffect(() => {
     const el = containerRef.current;
@@ -63,42 +63,34 @@ export default function QuotationPreviewCard({ company, customer, quotationNumbe
   const grossTotal = items.reduce((sum, item) => sum + taxableAmount(item), 0);
   const gstGroups = isGst ? groupByGstRatePreview(items) : [];
 
-  // Lay out pages from the hidden measuring copy. Runs after every render on purpose (any item or
+  // Pick the layout from the hidden measuring copy. Runs after every render on purpose (any item or
   // text change can change heights); it only sets state when the layout actually changes.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useLayoutEffect(() => {
     const m = measureRef.current;
     if (!m) return;
     const h = (sel) => m.querySelector(sel)?.offsetHeight || 0;
-    const rowHeights = (mode) => Array.from(m.querySelectorAll(`[data-row="${mode}"]`)).map((el) => el.offsetHeight);
-    const headH = h('[data-head]');
-    const room1 = ZONE_H - headH;
+    // Room for the table + note: the content zone minus the top section and the (fixed) footer
+    const room = (mode) => ZONE_H - h(`[data-head="${mode}"]`) - h('[data-foot]');
+    const body = (mode) => h(`[data-body="${mode}"]`);
 
-    const fits = (mode) => h(`[data-hdr="${mode}"]`) + rowHeights(mode).reduce((s, x) => s + x, 0) + h(`[data-tail="${mode}"]`) <= room1;
+    // Same order as the PDF: tight rows first, then tighter top-section gaps, then (last resort) shrink
     let next;
-    if (fits('normal')) next = { compact: false, breaks: [] };
-    else if (fits('compact')) next = { compact: true, breaks: [] };
-    else {
-      // Normal spacing across sheets: fill each sheet, then carry the last row over with the tail
-      const breaks = [];
-      const hdrH = h('[data-hdr="normal"]');
-      let used = hdrH;
-      let room = room1;
-      rowHeights('normal').forEach((rh, idx) => {
-        if (used + rh > room && idx > 0) { breaks.push(idx); used = hdrH; room = ZONE_H; }
-        used += rh;
-      });
-      const tailH = h('[data-tail="normal"]');
-      if (used + tailH > room && items.length > 0 && !breaks.includes(items.length - 1)) breaks.push(items.length - 1);
-      next = { compact: false, breaks };
+    if (body('normal') <= room('normal')) next = { compactHead: false, compactRows: false, fit: 1, bodyH: body('normal') };
+    else if (body('compact') <= room('normal')) next = { compactHead: false, compactRows: true, fit: 1, bodyH: body('compact') };
+    else if (body('compact') <= room('compact')) next = { compactHead: true, compactRows: true, fit: 1, bodyH: body('compact') };
+    else next = { compactHead: true, compactRows: true, fit: Math.max(0.1, room('compact') / body('compact')), bodyH: body('compact') };
+
+    if (next.compactHead !== layout.compactHead || next.compactRows !== layout.compactRows
+      || Math.abs(next.fit - layout.fit) > 0.005 || Math.abs(next.bodyH - layout.bodyH) > 0.5) {
+      setLayout(next);
     }
-    if (next.compact !== layout.compact || next.breaks.join() !== layout.breaks.join()) setLayout(next);
   });
 
-  const head = (
+  const head = (compact) => (
     <>
       {/* Like the pad: "TO:" on its own line, the customer's name/address indented below it */}
-      <div className="text-[9px] leading-snug mb-4" style={{ marginTop: 32 }}>
+      <div className={`text-[9px] leading-snug ${compact ? 'mb-1' : 'mb-4'}`} style={{ marginTop: compact ? 14 : 32 }}>
         <p className="font-bold">TO:</p>
         <p className="font-bold mt-[5px]" style={{ marginLeft: 32 }}>{customer?.name || 'Customer name'}</p>
         <p style={{ marginLeft: 32 }}>
@@ -108,10 +100,10 @@ export default function QuotationPreviewCard({ company, customer, quotationNumbe
         </p>
       </div>
 
-      <p className="text-[9px] mb-2"><span className="font-bold">SUB:</span>  {subjectLine(remarks || 'Quotation for interior furnishing works')}</p>
+      <p className={`text-[9px] ${compact ? 'mb-1' : 'mb-2'}`}><span className="font-bold">SUB:</span>  {subjectLine(remarks || 'Quotation for interior furnishing works')}</p>
 
       <p className="text-[9px] font-bold">DEAR SIR</p>
-      <p className="text-[8.5px] text-gray-700 ml-4 mb-2">
+      <p className={`text-[8.5px] text-gray-700 ml-4 ${compact ? 'mb-1' : 'mb-2'}`}>
         We are very much delighted by your kind enquiry and very happy to present you the quotation for the service you have enquired. Anticipating for your support and positive response.
       </p>
 
@@ -119,7 +111,7 @@ export default function QuotationPreviewCard({ company, customer, quotationNumbe
     </>
   );
 
-  // Column names heading the table (repeated on a continuation sheet), like the PDF
+  // Column names heading the table, like the PDF
   const headerRow = (compact, mode) => {
     const c = `${cellBorder(compact)} bg-[#e8ecf5] text-navy-900`;
     return (
@@ -180,90 +172,89 @@ export default function QuotationPreviewCard({ company, customer, quotationNumbe
     );
   };
 
-  const noteAndFooter = (
-    <>
-      <p className="text-[8.5px] mb-3">
-        <span className="font-bold">Note : </span>
-        <span className="text-gray-700">
-          {terms || `All prices quoted are valid for ${validityDays || 7} days from the date of stated on the quotation. 70% advance for the order confirmation.`}
-        </span>
-      </p>
+  const note = (
+    <p className="text-[8.5px] mb-3">
+      <span className="font-bold">Note : </span>
+      <span className="text-gray-700">
+        {terms || `All prices quoted are valid for ${validityDays || 7} days from the date of stated on the quotation. 70% advance for the order confirmation.`}
+      </span>
+    </p>
+  );
 
-      <div className="flex justify-between items-end pt-4 text-[9px]">
-        <div className="leading-relaxed font-bold">
-          {company?.name?.toUpperCase() || 'PANJU INTEXT'}
-          <br />A/c. No : 510101000385645
-          <br />UNION BANK of INDIA
-          <br />IFSC : UBIN 0817767
-          <br />FIVE ROADS - SALEM BRANCH
-        </div>
-        <div className="text-center">
-          <span className="font-bold">Thanks &amp; Regards</span>
-          <br /><span className="text-gray-700">{company?.name || 'Panju Intext'}</span>
-        </div>
+  const footer = (
+    <div className="flex justify-between items-end pt-4 text-[9px]">
+      <div className="leading-relaxed font-bold">
+        {company?.name?.toUpperCase() || 'PANJU INTEXT'}
+        <br />A/c. No : 510101000385645
+        <br />UNION BANK of INDIA
+        <br />IFSC : UBIN 0817767
+        <br />FIVE ROADS - SALEM BRANCH
       </div>
+      <div className="text-center">
+        <span className="font-bold">Thanks &amp; Regards</span>
+        <br /><span className="text-gray-700">{company?.name || 'Panju Intext'}</span>
+      </div>
+    </div>
+  );
+
+  /** Table (header, items, totals) + note — the part that tightens / shrinks to fit. */
+  const tableBody = (compact) => (
+    <>
+      <table className={tableCls} style={tableStyle}>
+        <tbody>
+          {headerRow(compact)}
+          {items.map((item, idx) => itemRow(item, idx, compact))}
+          {totalsRows(compact)}
+        </tbody>
+      </table>
+      {note}
     </>
   );
 
   const tableCls = 'border-collapse text-[8.5px] mb-2 font-bold';
   const tableStyle = { tableLayout: 'fixed', width: TABLE_W };
 
-  // Split item indexes into sheets at the planned breaks
-  const sheets = [];
-  let start = 0;
-  [...layout.breaks, items.length].forEach((end) => { sheets.push(items.slice(start, end).map((item, i) => [item, start + i])); start = end; });
-
   return (
     <div ref={containerRef} className="w-full space-y-4">
-      {scale > 0 && sheets.map((sheetItems, sheetIdx) => {
-        const isFirst = sheetIdx === 0;
-        const isLast = sheetIdx === sheets.length - 1;
-        return (
-          <div key={sheetIdx} className="relative w-full overflow-hidden shadow-lg" style={{ aspectRatio: `${A4_W} / ${A4_H}` }}>
-            <div
-              className="absolute top-0 left-0 bg-white text-black"
-              style={{
-                width: A4_W, height: A4_H,
-                transform: `scale(${scale})`, transformOrigin: 'top left',
-                backgroundImage: "url('/images/letterhead-a4.png')", backgroundSize: '100% 100%',
-              }}
-            >
-              <div className="absolute overflow-hidden" style={{ left: 45, top: ZONE_TOP, width: BODY_W, bottom: ZONE_BOTTOM }}>
-                {isFirst && head}
-                <table className={tableCls} style={tableStyle}>
-                  <tbody>
-                    {headerRow(layout.compact)}
-                    {sheetItems.map(([item, idx]) => itemRow(item, idx, layout.compact))}
-                    {isLast && totalsRows(layout.compact)}
-                  </tbody>
-                </table>
-                {isLast && noteAndFooter}
-              </div>
-              {/* QT number + date at the top-right, just inside the header curve — same spot as the PDF */}
-              {isFirst && (
-                <div className="absolute text-[9px] leading-snug text-center" style={{ left: QT_RIGHT - QT_WIDTH, width: QT_WIDTH, top: ZONE_TOP + 32 }}>
-                  <span className="font-bold">{quotationNumber || 'Draft'}</span>
-                  <br />{dotDate(date)}
+      {scale > 0 && (
+        <div className="relative w-full overflow-hidden shadow-lg" style={{ aspectRatio: `${A4_W} / ${A4_H}` }}>
+          <div
+            className="absolute top-0 left-0 bg-white text-black"
+            style={{
+              width: A4_W, height: A4_H,
+              transform: `scale(${scale})`, transformOrigin: 'top left',
+              backgroundImage: "url('/images/letterhead-a4.png')", backgroundSize: '100% 100%',
+            }}
+          >
+            <div className="absolute overflow-hidden" style={{ left: 45, top: ZONE_TOP, width: BODY_W, bottom: ZONE_BOTTOM }}>
+              {head(layout.compactHead)}
+              {/* Last resort only: table + note scaled to fit; the wrapper keeps the scaled height */}
+              <div style={{ height: layout.fit < 1 && layout.bodyH ? layout.bodyH * layout.fit : undefined }}>
+                <div style={layout.fit < 1 ? { width: BODY_W / layout.fit, transform: `scale(${layout.fit})`, transformOrigin: 'top left' } : undefined}>
+                  {tableBody(layout.compactRows)}
                 </div>
-              )}
+              </div>
+              {footer}
+            </div>
+            {/* QT number + date at the top-right, just inside the header curve — same spot as the PDF */}
+            <div className="absolute text-[9px] leading-snug text-center" style={{ left: QT_RIGHT - QT_WIDTH, width: QT_WIDTH, top: ZONE_TOP + (layout.compactHead ? 14 : 32) }}>
+              <span className="font-bold">{quotationNumber || 'Draft'}</span>
+              <br />{dotDate(date)}
             </div>
           </div>
-        );
-      })}
+        </div>
+      )}
 
       {/* Hidden measuring copy (same widths/fonts) — offsetHeight is unaffected by the sheet scaling */}
       <div style={{ height: 0, overflow: 'hidden' }} aria-hidden>
       <div ref={measureRef} className="pointer-events-none" style={{ visibility: 'hidden', width: BODY_W }}>
-        <div data-head>{head}</div>
         {['normal', 'compact'].map((mode) => (
           <div key={mode}>
-            <table className={tableCls} style={tableStyle}><tbody>{headerRow(mode === 'compact', mode)}{items.map((item, idx) => itemRow(item, idx, mode === 'compact', mode))}</tbody></table>
-            <div data-tail={mode}>
-              <table className={tableCls} style={tableStyle}><tbody>{totalsRows(mode === 'compact')}</tbody></table>
-              {noteAndFooter}
-            </div>
+            <div data-head={mode}>{head(mode === 'compact')}</div>
+            <div data-body={mode}>{tableBody(mode === 'compact')}</div>
           </div>
         ))}
+        <div data-foot>{footer}</div>
       </div>
       </div>
     </div>
